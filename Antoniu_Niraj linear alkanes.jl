@@ -16,15 +16,17 @@ models = [model_butane, model_pentane, model_hexane, model_heptane, model_octane
 N=500
 T_range=LinRange(250,450,N)
 P=1e5
-
-#n_reduced=zeros(N)
-#n_CE=zeros(N)
+#property calculations
 viscosity=zeros(N,length(models))
 for i in 1:length(models)
     vicosity_reduced= reduced_viscosity.(models[i],P,T_range[:])
     viscosity_CE = dilute_gas_viscosity.(models[i],T_range[:]) 
     viscosity[:,i] = vicosity_reduced.*viscosity_CE
 end
+
+#experimental values
+nist_hexane = CSV.read("Experimental Data/nist_hexane_1bar.csv", DataFrame)
+
 
 #reduced_viscosity.(model_hexane,P,T_range[:])
 labels = ["Butane", "Pentane", "Hexane", "Heptane","Octane", "Nonane", "Decane"]
