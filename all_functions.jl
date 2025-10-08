@@ -70,7 +70,7 @@ function reduced_viscosity(model::EoSModel,P,T)
     n_α= model.groups.n_groups[1] 
     S=model.params.shapefactor
     σ = diag(model.params.sigma.values)
-    a_α=[1.77e27,4.83e27];b_α=[-2.25e15,-9.01e15]  #paramters from 2017 paper for n-alkanes, for liquid region
+    a_α=[1.1e28,-1.92e27];b_α=[-4.32e15,-7.51e15]  #paramters from 2017 paper for n-alkanes, for liquid region
     γ=0.45 #Constant for n-alkanes
     
 
