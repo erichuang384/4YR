@@ -1,16 +1,17 @@
-using Clapeyron
+using Clapeyron, LinearAlgebra
 
 include("all_functions.jl")
 
 model = SAFTgammaMie(["hexane","heptane","octane"])
+
+model_a = PCPSAFT(["hexane"])
+model_hexane = SAFTgammaMie(["hexane"])
 #model = SAFTgammaMie(["methane","butane"])
-#function Φᵢⱼ(model::EoSModel,z)
+function CE_mix(model::EoSModel,T,z)
     # need to define models
-    
-    T = 300
     components = model.groups.components
     models = []
-    z = [0.2,0.3,0.5]
+
     for i in 1:length(components)
         push!(models,SAFTgammaMie([components[i]]))
     end
@@ -30,7 +31,10 @@ model = SAFTgammaMie(["hexane","heptane","octane"])
     phi_ij = [sum(z[j] * phi[i, j] for j in 1:n) for i in 1:n]
 
     visc_mix = sum(z[i] * viscosity_CE[i] / phi_ij[i] for i in 1:n)
+end
+z = [0.2, 0.3,0.5]
 
-#end
+CE_mix(model,300,z)
 a = model.groups.components[1]
 SAFTgammaMie([a])
+
