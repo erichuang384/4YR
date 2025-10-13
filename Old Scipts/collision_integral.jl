@@ -41,5 +41,5 @@ function Ω⃰_Mie(model::EoSModel, T)
     return exp(ln_Omega)
 end
 
+Ω⃰_LJ(model,300)
 Ω⃰(model,300)
-Ω⃰_Mie(model,300)

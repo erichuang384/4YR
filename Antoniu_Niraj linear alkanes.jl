@@ -15,8 +15,8 @@ models = [model_pentane, model_hexane, model_heptane, model_octane, model_nonane
 
 labels = ["Pentane", "Hexane","Heptane","Octane","Nonane","Decane"]
 
-N=1000
-T_range=LinRange(200,450,N)
+N=500
+T_range=LinRange(145,450,N)
 P=1e5
 T_boil = saturation_temperature.(models[:],P)
 
@@ -46,6 +46,9 @@ exp_octane = CSV.read("Experimental Data/octane_1bar.csv", DataFrame)
 exp_nonane = CSV.read("Experimental Data/nonane_1bar.csv", DataFrame)
 exp_decane = CSV.read("Experimental Data/decane_1bar.csv", DataFrame)
 
+#NIST values
+nist_octane = CSV.read("Experimental Data/octane_1bar_nist.csv", DataFrame)
+
 exp_data = [exp_pentane, exp_hexane, exp_heptane, exp_octane, exp_nonane, exp_decane]
 
 # Create a plot for each alkane
@@ -59,7 +62,7 @@ for i in 1:length(models)
         xlabel = L"T/\mathrm{K}",
         ylabel = L"\eta/\;(\mathrm{Pa\cdot s})",
         title = "$(labels[i])",
-        xlims = (200,T_boil[i][1]),
+        xlims = (145,T_boil[i][1]),
         xguidefont = font(16),
         yguidefont = font(16)
     )
@@ -73,12 +76,26 @@ for i in 1:length(exp_data)
 end
 plots[1]
 
-ylims!(plots[1],0,0.001)
+ylims!(plots[1],0,0.004)
+
+xlims!(plots[2],180,350)
 ylims!(plots[2],0,0.0015)
+
+xlims!(plots[3],180,350)
 ylims!(plots[3],0,0.0025)
-ylims!(plots[4],0,0.0015)
+
+
+scatter!(plots[4],nist_octane[:,1],nist_octane[:,3],label = "NIST")
+xlims!(plots[4],200,400)
+ylims!(plots[4],0.,0.0015)
+
+xlims!(plots[5],220,400)
 ylims!(plots[5],0,0.002)
-ylims!(plots[6],0,0.001)
+
+
+xlims!(plots[6],200,400)
+ylims!(plots[6],0,0.003)
+
 
 savefig(plots[1],"pentane_1bar")
 savefig(plots[2],"hexane_1bar")

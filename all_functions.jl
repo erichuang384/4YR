@@ -1,6 +1,6 @@
 function σ_OFE(model::EoSModel)
     """
-    sigma pure fluid equivalent
+    sigma pure fluid equivalent, Papaioannou 
     """
     xₛₖ = x_sk(model)
     σ = cbrt(xₛₖ' * (model.params.sigma).^3 * xₛₖ)
@@ -9,7 +9,7 @@ end
 
 function ϵ_OFE(model::EoSModel)
     """
-    epsilon pure fluid equivalent
+    epsilon pure fluid equivalent, Papaioannou 
     """
     xₛₖ = x_sk(model)
     ϵ_kl = model.params.epsilon.values
@@ -19,7 +19,7 @@ end
 
 function x_sk(model::EoSModel)
     """
-    x_sk
+    x_sk, Papaioannou 
     """
     s = model.params.shapefactor
     segment = model.params.segment
@@ -35,7 +35,7 @@ function x_sk(model::EoSModel)
     return xₛₖ[1]
 end
 
-function Ω⃰(model::EoSModel,T)
+function Ω⃰_LJ(model::EoSModel,T)
     """
     Reduced Collision Integral
     For two component, need to work on getting epsilon in general
@@ -67,7 +67,7 @@ end
 
 function reduced_viscosity(model::EoSModel,P,T)
     """
-    reduced viscosity from Lotgering
+    reduced viscosity from Lotgering 2015
     """
 
     n_α= model.groups.n_groups[1] 
@@ -94,7 +94,7 @@ end
 
 function CE_mix(model::EoSModel,T,z)
     """
-    Chapman-Enskog Viscosity for Mixture
+    Chapman-Enskog Viscosity for Mixture by Wilke 1950 
     """
     components = model.groups.components
     models = []
@@ -122,15 +122,15 @@ end
 
 
 function reduced_viscosity_mixture(model::EoSModel,P,T,z)
+    """
+    Method for viscosity of mixtures by Lotgering 2018
+    """
     components = model.groups.components
     models = []
  
     for i in 1:length(components)
         push!(models,SAFTgammaMie([components[i]]))
     end
-
-    # calculate CE pure
-    #viscosity_CE = dilute_gas_viscosity.(models[:],T)
 
     a_α=[1.1e28,-1.92e27];b_α=[-4.32e15,-7.51e15]  #paramters from 2017 paper for n-alkanes, for liquid region
     γ=0.45 #Constant for n-alkanes
@@ -161,4 +161,46 @@ function reduced_viscosity_mixture(model::EoSModel,P,T,z)
 
     n_reduced_mix = sum(z.*A) + sum(((z.*m)./m_mean).*B.*s_reduced)
     return n_reduced_mix
+end
+
+function λ_r_OFE(model::EoSModel)
+    """
+    λ_r pure fluid equivalent
+    """
+    xₛₖ = x_sk(model)
+    λ_kl = model.params.lambda_r.values
+    λ = xₛₖ' * λ_kl * xₛₖ
+    return λ
+end
+    # Compute a_i^(2,2)(λr) using Eq. (S.4)
+function  a²²ᵢ(λ_r)
+    """
+    Matrix of coefficients for Collision integral by Fokin et al.
+    """
+
+    a²² = [0.0           0.113086e1    0.234799e2    0.310127e1;
+    0.0           0.551559e1   -0.137023e3    0.185848e2;
+    0.325909e-1  -0.292925e2    0.243741e3    0.0;
+    0.697682      0.590192e2   -0.143670e3   -0.123518e3;
+   -0.564238     -0.430549e2    0.0           0.137282e3;
+    0.126508      0.104273e2    0.150601e2   -0.408911e2]
+    a = zeros(6)
+    for i in 1:6
+        a[i] = a²²[i,1] + a²²[i,2]/λ_r + a²²[i,3]/λ_r^2 + a²²[i,4]/λ_r^3
+    end
+    return a
+end
+
+function Ω⃰(model::EoSModel, T)
+    """
+    Collision Integral correlation by Fokin et al.
+    """
+    λ_r = λ_r_OFE(model)
+    a_vals =  a²²ᵢ(λ_r)
+    ϵ = ϵ_OFE(model)
+    T⃰ = T / ϵ
+
+    ln_Omega = -2/λ_r * log(T⃰) + log(1 - 2/(3*λ_r)) + sum(a_vals[i] * (1/T⃰)^((i-1)/2) for i in 1:6)
+
+    return exp(ln_Omega)
 end
