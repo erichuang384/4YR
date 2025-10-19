@@ -21,8 +21,8 @@ function IB_viscosity_GCM(model::EoSModel,P,T)
     """
     n_g = [-0.448046, 1.012681, -0.381869, 0.054674] # global parameters
 
-    ξ_i = ["CH3" 0.5;
-    "CH2"  0.045] # temporary manually tuned
+    ξ_i = ["CH3" 0.484458;
+    "CH2"  0.047793] # temporary manually tuned
     ξ = 0
     # GCM determination of ξ, doesn't yet include second order contributions
     groups = model.groups.groups[1] #n-elemnet Vector{string}
@@ -135,10 +135,11 @@ ylims!(plots[5],0,0.002)
 xlims!(plots[6],200,400)
 ylims!(plots[6],0,0.003)
 
+"""
 savefig(plots[1],"pentane_1bar")
 savefig(plots[2],"hexane_1bar")
 savefig(plots[3],"heptane_1bar")
 savefig(plots[4],"octane_1bar")
 savefig(plots[5],"nonane_1bar")
 savefig(plots[6],"decane_1bar")
-
+"""

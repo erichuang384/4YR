@@ -1,9 +1,11 @@
 using Clapeyron, CSV, DataFrames, Plots, LaTeXStrings, Metaheuristics
 using Statistics
 using Random
-include("all_functions.jl")
+include(joinpath(dirname(@__FILE__), "..", "bell_functions.jl"))
+include("optimization_functions.jl")
 
-function IB_viscosity_GCM_with_ximap(model::EoSModel, P, T; xi_map = Dict("CH3" => 0.5, "CH2" => 0.045))
+
+function IB_viscosity_GCM_with_ximap(model::EoSModel, P, T; xi_map = Dict("CH3" => 0.5, "CH2" => 0.045, "aCH"=>0.5))
 	"""
 	Overall viscosity using method proposed by Ian Bell, but with xi_map passed in.
 	"""

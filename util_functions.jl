@@ -45,47 +45,6 @@ function  a²²ᵢ(λ_r)
     return a
 end
 
-
-function Lotgering_dilute_gas_viscosity(model::EoSModel,T)
-    """
-    Chapman-Enskog Theory for two component because way sigma specified
-    Replace with one component something
-    """
-    N_A = 6.0221408e23
-    k_B = 1.380649e-23
-    σ = σ_OFE(model)
-    Mw = Clapeyron.molecular_weight(model) # in kg/mol
-    m_gc = sum(model.groups.n_groups[1])
-    Ω = Ω⃰(model,T)
-    visc = 5/16*sqrt(Mw*k_B*T/(m_gc*N_A*pi))/(σ^2*Ω)
-    return visc
-end
-
-function Lotgering_reduced_viscosity(model::EoSModel,P,T)
-    """
-    Dimensionelss Viscosity
-    """
-    n_α= model.groups.n_groups[1] 
-    S=model.params.shapefactor
-    σ = diag(model.params.sigma.values)
-    a_α=[1.1e28,-1.92e27];b_α=[-4.32e15,-7.51e15]  #paramters from 2017 slides 
-    #a_α=[1.77e27,4.83e27];b_α=[-2.25e15,-9.01e15]   #paramters from 2017 paper for n-alkanes, for liquid region
-    γ=0.45 #Constant for n-alkanes
-    
-    V=(sum(n_α.*S.*(σ.^3)))
-    A=sum(n_α.*S.*(σ.^3).*a_α)
-    B=sum((n_α.*S.*(σ.^3).*b_α)./(V.^γ))
-    
-    s_res=entropy_res(model,P,T)
-    m_gc = sum(model.groups.n_groups[1])
-    k_B = 1.380649e-23
-    R=8.314 #Using R instead of kB
-    z=(s_res./(R.*m_gc))  # molar entropy
-
-    n_reduced=exp(A+B.*z)
-    return n_reduced
-end
-
 function Ω⃰_LJ(model::EoSModel,T)
     """
     Reduced Collision Integral
@@ -118,4 +77,18 @@ function x_sk(model::EoSModel)
     end
     xₛₖ = v./sum(v[1])
     return xₛₖ[1]
+end
+
+function Ω⃰(model::EoSModel, T)
+    """
+    Collision Integral correlation by Fokin et al.
+    """
+    λ_r = λ_r_OFE(model)
+    a_vals =  a²²ᵢ(λ_r)
+    ϵ = ϵ_OFE(model)
+    T⃰ = T / ϵ
+
+    ln_Omega = -2/λ_r * log(T⃰) + log(1 - 2/(3*λ_r)) + sum(a_vals[i] * (1/T⃰)^((i-1)/2) for i in 1:6)
+
+    return exp(ln_Omega)
 end
