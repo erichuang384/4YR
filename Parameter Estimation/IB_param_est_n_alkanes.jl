@@ -20,10 +20,10 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
             Tvals = data.t
             μ_exp = data.viscosity
 
-            μ_pred = IB_viscosity_GCM_xi.(model, Pvals[:], Tvals[:]; xi_GCM = xi_GCM)
+            μ_pred = IB_viscosity_GCM_xi_3param.(model, Pvals[:], Tvals[:]; xi_GCM = xi_GCM)
 
             # sum of squared relative errors
-            total_error += sum(((μ_exp .- μ_pred) ./ μ_exp) .^ 2)./length(Pvals)
+            total_error += sum(abs.(μ_exp .- μ_pred)./μ_exp)./length(Pvals)
         end
 
         return total_error
@@ -75,9 +75,9 @@ end
 models = [
     SAFTgammaMie(["Octane"]),
     SAFTgammaMie(["Decane"]),
-    SAFTgammaMie([("Dodecane",["CH3"=>2,"CH2"=>10])]),
-    SAFTgammaMie([("Tetradecane",["CH3"=>2,"CH2"=>12])]),
-    SAFTgammaMie([("Hexadecane",["CH3"=>2,"CH2"=>14])])
+    SAFTgammaMie(["Dodecane"]),
+    SAFTgammaMie(["Tetradecane"]),
+    SAFTgammaMie(["Hexadecane"])
 ]
 
 data_paths = [
@@ -91,6 +91,6 @@ data_paths = [
 datasets = [load_experimental_data(p) for p in data_paths]
 
 # Run global estimation
-res = estimate_xi_CH3_CH2!(models, datasets; lower = [0.0, 0.0], upper = [1.0, 1.0], seed = 42, max_iters = 5000)
+res = estimate_xi_CH3_CH2!(models, datasets; lower = [0.3, 0.02], upper = [0.5, 0.1], seed = 42, max_iters = 5000)
 println(res)
 println("Best (xi_CH3, xi_CH2) = ", res.best_sol)

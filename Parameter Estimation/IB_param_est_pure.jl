@@ -1,7 +1,7 @@
 using Clapeyron, CSV, DataFrames, Plots, LaTeXStrings, Metaheuristics
 using Statistics, Random
 
-include(joinpath(dirname(@__FILE__), "..", "all_functions.jl"))
+include(joinpath(dirname(@__FILE__), "..", "bell_functions.jl"))
 include("optimization_functions.jl")
 
 # === Objective Function for Multiple Models ===
@@ -19,7 +19,7 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
             Tvals = data.t
             μ_exp = data.viscosity
 
-            μ_pred = IB_viscosity_pure_xi.(model, Pvals[:], Tvals[:]; ξ = ξ)
+            μ_pred = IB_viscosity_pure_xi_3param.(model, Pvals[:], Tvals[:]; ξ = ξ)
 
             # sum of squared relative errors
             total_error += sum(((μ_exp .- μ_pred) ./ μ_exp) .^ 2)
@@ -71,7 +71,7 @@ end
 
 # Define models and corresponding data (can be 1..N)
 models = [
-    SAFTgammaMie([("Hexadecane",["CH3"=>2,"CH2"=>14])])
+    SAFTgammaMie(["Hexadecane"])
 ]
 
 data_paths = [
@@ -81,6 +81,7 @@ data_paths = [
 datasets = [load_experimental_data(p) for p in data_paths]
 
 # Run global estimation
+@show models
 res = estimate_ξ!(models, datasets; lower = [0.0], upper = [2.0], seed = 42, max_iters = 5000)
 println(res)
 println("Best ξ = ", res.best_sol)

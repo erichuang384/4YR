@@ -25,7 +25,7 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
             μ_pred = IB_viscosity_pure_xi_3param.(model, Pvals[:], Tvals[:]; ξ = ξ)
 
             # sum of squared relative errors
-            total_error += sum(abs.((μ_exp .- μ_pred) ./ μ_exp))
+            total_error += sum((μ_exp .- μ_pred) .^ 2)
             #total_error += sum((μ_exp .- μ_pred).^2)
         end
 

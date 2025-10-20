@@ -11,7 +11,7 @@ function IB_viscosity(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 
 		ξ_i = ["CH3" 0.484458;
 			"CH2"  0.047793;
-			"aCH"  0.17447]
+			"aCH"  0.17]
 		ξ = 0
 		# GCM determination of ξ, doesn't yet include second order contributions
 		groups = model.groups.groups[j] #n-elemnet Vector{string}
@@ -56,14 +56,14 @@ function IB_viscosity_3param(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters
 	"""
-	n_g = [0.301491667, -0.143158667, 0.036576] # global parameters
+	n_g = [0.30136975, -0.11931025, 0.02531175] # global parameters
 	ξ_pure = zeros(length(z))
 
 	for j ∈ 1:length(z)
 
-		ξ_i = ["CH3" 0.484458;
-			"CH2"  0.047793;
-			"aCH"  0.143064667]
+		ξ_i = ["CH3" 0.405772;
+			"CH2"  0.0388554;
+			"aCH"  0.14268]
 		ξ = 0
 		# GCM determination of ξ, doesn't yet include second order contributions
 		groups = model.groups.groups[j] #n-elemnet Vector{string}

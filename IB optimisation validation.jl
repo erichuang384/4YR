@@ -21,7 +21,7 @@ models = [
 
 #models = [model_pentane, model_hexane, model_heptane, model_octane, model_nonane, model_decane]
 
-labels = ["Nonane", "Decane" ,"Undecane","Dodecane", "Tridecane","Tetradecane","Hexadecane","Pentadecane", "Hexadecane","Heptadecane"]
+labels = ["Octane","Nonane", "Decane" ,"Undecane","Dodecane", "Tridecane","Tetradecane","Hexadecane","Pentadecane", "Hexadecane","Heptadecane"]
 
 #experimental values
 exp_nonane = CSV.read("Validation Data/Nonane DETHERM.csv", DataFrame)
@@ -45,7 +45,7 @@ for i in 1:length(models)
     T_exp = exp_data[i][:,2]
     n_exp = exp_data[i][:,3]
     P_exp = exp_data[i][:,1] 
-    n_calc = IB_viscosity.(models[i],P_exp,T_exp) 
+    n_calc = IB_viscosity_3param.(models[i],P_exp,T_exp) 
 
     AAD[i] = sum(abs.( (n_exp .- n_calc)./n_exp))/length(P_exp)
 end
@@ -61,8 +61,15 @@ println("AAD = ", AAD)
 #exp_heptadecane.AAD = AAD_heptadecane
 #CSV.write("Validation Data/Heptadecane DETHERM.csv", exp_heptadecane)
 
-AAD_hexadecane = abs.(exp_hexadecane[:,3] .- IB_viscosity.(models[9],exp_hexadecane[:,1],exp_hexadecane[:,2]))./exp_hexadecane[:,3]
+#AAD_hexadecane = abs.(exp_hexadecane[:,3] .- IB_viscosity.(models[9],exp_hexadecane[:,1],exp_hexadecane[:,2]))./exp_hexadecane[:,3]
+
+#exp_hexadecane.AAD = AAD_hexadecane
+#CSV.write("Training Data/Hexadecane DETHERM.csv", exp_hexadecane)
+
+AAD_octane = abs.(exp_hexadecane[:,3] .- IB_viscosity.(models[9],exp_hexadecane[:,1],exp_hexadecane[:,2]))./exp_hexadecane[:,3]
 
 exp_hexadecane.AAD = AAD_hexadecane
 CSV.write("Training Data/Hexadecane DETHERM.csv", exp_hexadecane)
+
+
 

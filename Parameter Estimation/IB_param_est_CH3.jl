@@ -46,7 +46,7 @@ function IB_viscosity_GCM_with_ximap(model::EoSModel, P, T; xi_map = Dict("CH3" 
 
 	n_res = (n_reduced .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) ./ ((s_red) .^ (2 / 3))
 
-	μ = IB_dilute_gas_viscosity(model, T) .+ n_res
+	μ = IB_CE(model, T) .+ n_res
 	return μ
 end
 

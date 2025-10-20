@@ -34,7 +34,7 @@ function calc_AAD(model::EoSModel, exp_file,rule = 1)
     visc_exp = exp_file[:,4]
     visc = zeros(length(x))
     for i in 1:length(x)
-        visc[i] = IB_viscosity_mix_test(model, p[i], T[i], [x[i], 1.0 - x[i]],rule = rule)
+        visc[i] = IB_viscosity_mix(model, p[i], T[i], [x[i], 1.0 - x[i]],rule = rule)
     end
     AAD = sum(abs.(visc_exp-visc)./visc_exp)/length(x)
     return AAD
@@ -49,7 +49,7 @@ AAD_all_2 = calc_AAD.(models,exp_data,2)
 mean_AAD_2 = sum(AAD_all_2)/length(AAD_all_2)
 
 
-function IB_viscosity_mix_test(model::EoSModel, P, T, z = StaticArrays.SA[1.0];rule = 1)
+function IB_viscosity_mix(model::EoSModel, P, T, z = StaticArrays.SA[1.0];rule = 1)
 	"""
 	Overall Viscosity using method proposed by Ian Bell
 	"""
