@@ -1,6 +1,6 @@
-using Clapeyron, Plots, LinearAlgebra, CSV, DataFrames, LaTeXStrings
+using Clapeyron, Plots, LinearAlgebra, CSV, DataFrames, LaTeXStrings, StaticArrays
 
-include("all_functions.jl")
+include("bell_functions.jl")
 
 #model_butane = SAFTgammaMie(["butane"])
 model_pentane = SAFTgammaMie(["pentane"])
@@ -14,44 +14,6 @@ model_decane = SAFTgammaMie(["decane"])
 models = [model_pentane, model_hexane, model_heptane, model_octane, model_nonane, model_decane]
 
 labels = ["Pentane", "Hexane","Heptane","Octane","Nonane","Decane"]
-
-function IB_viscosity_GCM(model::EoSModel,P,T)
-    """
-    Overall Viscosity uisng method proposed by Ian Bell 
-    """
-    n_g = [-0.448046, 1.012681, -0.381869, 0.054674] # global parameters
-
-    ξ_i = ["CH3" 0.484458;
-    "CH2"  0.047793] # temporary manually tuned
-    ξ = 0
-    # GCM determination of ξ, doesn't yet include second order contributions
-    groups = model.groups.groups[1] #n-elemnet Vector{string}
-    num_groups = model.groups.n_groups[1] #n-element Vector{Int}
-    for i in 1:length(groups)
-        value = ξ_i[ξ_i[:, 1] .== groups[i], 2][1]
-        ξ = ξ + value * num_groups[i]
-    end
-
-    R = 8.314462
-    s_res=entropy_res(model,P,T)
-    s_red=-s_res./R
-    
-    n_reduced= exp(n_g[1].*(s_red./ξ) + n_g[2].*(s_red./ξ).^(1.5) + n_g[3].*(s_red./ξ).^(2) + n_g[4].*(s_red./ξ).^(2.5)) -1
-
-    N_A = 6.0221408e23
-    k_B = 1.380649e-23
-
-    ρ_molar=molar_density(model,P,T)
-    ρ_N = ρ_molar.*N_A
-
-    Mw = Clapeyron.molecular_weight(model)
-    m=Mw/N_A
-
-    n_res= (n_reduced.*(ρ_N.^(2/3)).*sqrt.(m.*k_B.*T))./((s_red).^(2/3))
-
-    viscosity = IB_dilute_gas_viscosity(model,T) + n_res
-    return viscosity
-end
 
 N=500
 T_range=LinRange(145,450,N)
@@ -68,7 +30,7 @@ for i in 1:length(models)
 end
 
 for i in 1:length(models)
-    viscosity_IB[:,i] = IB_viscosity_GCM.(models[i],P,T_range[:]) 
+    viscosity_IB[:,i] = IB_viscosity.(models[i],P,T_range[:]) 
 end
 
 #experimental values

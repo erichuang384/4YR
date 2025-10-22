@@ -1,6 +1,7 @@
 using Clapeyron, Plots, LinearAlgebra, CSV, DataFrames, LaTeXStrings
 
-include("all_functions.jl")
+#include("Lotgering_functions.jl")
+#include(joinpath(dirname(@__FILE__), "..", "Lotgering_functions.jl"))
 
 #model_butane = SAFTgammaMie(["butane"])
 model_pentane = SAFTgammaMie(["pentane"])
@@ -32,10 +33,9 @@ T_range = LinRange.(200,T_boil[:],N)
 
 #property calculations
 viscosity=zeros(N,length(models))
+
 for i in 1:length(models)
-    vicosity_reduced= reduced_viscosity.(models[i],P,T_range[:])
-    viscosity_CE = dilute_gas_viscosity.(models[i],T_range[:]) 
-    viscosity[:,i] = vicosity_reduced.*viscosity_CE
+    viscosity[:,i] = Lotgering_viscosity_optimize.(models[i],P,T_range)
 end
 
 #experimental values
@@ -64,7 +64,8 @@ for i in 1:length(models)
         title = "$(labels[i])",
         xlims = (145,T_boil[i][1]),
         xguidefont = font(16),
-        yguidefont = font(16)
+        yguidefont = font(16),
+        grid = false
     )
     push!(plots, g)
 end
@@ -96,10 +97,11 @@ ylims!(plots[5],0,0.002)
 xlims!(plots[6],200,400)
 ylims!(plots[6],0,0.003)
 
-
+#=
 savefig(plots[1],"pentane_1bar")
 savefig(plots[2],"hexane_1bar")
 savefig(plots[3],"heptane_1bar")
 savefig(plots[4],"octane_1bar")
 savefig(plots[5],"nonane_1bar")
 savefig(plots[6],"decane_1bar")
+=#

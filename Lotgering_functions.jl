@@ -111,8 +111,8 @@ function Lotgering_dilute_gas_viscosity(model::EoSModel,T)
     Chapman-Enskog Theory for two component because way sigma specified
     Replace with one component something
     """
-    N_A = 6.0221408e23
-    k_B = 1.380649e-23
+    N_A = Clapeyron.N_A
+    k_B = Clapeyron.k_B
     σ = σ_OFE(model)
     Mw = Clapeyron.molecular_weight(model) # in kg/mol
     m_gc = sum(model.groups.n_groups[1])
