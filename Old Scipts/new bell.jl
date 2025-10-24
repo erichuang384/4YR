@@ -5,34 +5,60 @@ function IB_viscosity_new(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters
 	"""
-	n_ch3 = [0.30136975, -0.11931025, 0.02531175] # global parameters
+
+	n_i = [    "CH3" 0.199166 12.1976 0.0723016;
+		"CH2" -0.0115388 -62.7495 134.238]
+
+	groups = model.groups.groups[1]   # e.g. ["CH3", "CH2"]
+	num_groups = model.groups.n_groups[1]  # corresponding counts
+    x_groups = num_groups./ sum(num_groups)
+
+	n_g_matrix = zeros(length(groups), 3)  # rows: groups, cols: 3 coefficients
+    #n_g
+    S=model.params.shapefactor
+    σ = diag(model.params.sigma.values)
+
+    γ= [1.0536, 1.43602] 
     
-	ξ_pure = zeros(length(z))
+    V=(sum(num_groups.*S.*(σ.^3))) * 1e30
+    #B=sum((n_groups.*)./(V.^γ))
 
-	for j ∈ 1:length(z)
+    # A calculate
+    for i in 1:length(groups)
+    # find group index in n_i
+        row = findfirst(x -> x == groups[i], n_i[:,1])
+        n_g_matrix[i,1] = n_i[row, 2] * num_groups[i]
+    end
 
-		ξ_i = ["CH3" 0.4085265;
-			"CH2"  0.0383325;
-			"aCH"  0.142683]
-		ξ = 0
-		# GCM determination of ξ, doesn't yet include second order contributions
-		groups = model.groups.groups[j] #n-elemnet Vector{string}
-		num_groups = model.groups.n_groups[j] #n-element Vector{Int}
-		for i in 1:length(groups)
-			value = ξ_i[ξ_i[:, 1].==groups[i], 2][1]
-			ξ = ξ + value * num_groups[i]
+    # B calculate
+    for i in 1:length(groups)
+        row = findfirst(x -> x == groups[i], n_i[:,1])
+        value = n_i[row,3]
+        n_g_matrix[i,2] = value * x_groups[i] / (V^γ[1])
+    end
 
-			ξ_pure[j] = ξ
-		end
+    # C calculate
+    for i in 1:length(groups)
+        row_i = findfirst(x -> x == groups[i], n_i[:,1])
+        a_i = n_i[row_i, 4]
+        term = 0.0
+        for j in 1:length(groups)
+            row_j = findfirst(x -> x == groups[j], n_i[:,1])
+            a_j = n_i[row_j, 4]
+            term += x_groups[i] * x_groups[j] * sqrt(a_i * a_j)
+        end
+        n_g_matrix[i,3] = term / (V^γ[2])
+    end
 
-	end
 
-	ξ_mix = sum(z .* ξ_pure)
+	# Now sum across groups for each coefficient (column)
+	n_g = sum(n_g_matrix, dims = 1)  # sums over rows for each column, result is 1x3 matrix
+	
 	R = Rgas()
 	s_res = entropy_res(model, P, T, z)
 	s_red = -s_res ./ R
 
-	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.8)) - 1
+	n_reduced = exp(n_g[1] .* (s_red) .^ (1.8) + n_g[2] .* (s_red) .^ (2.4) + n_g[3] .* (s_red) .^ (2.8)) - 1
 
 	N_A = Clapeyron.N_A
 	k_B = Clapeyron.k_B

@@ -26,7 +26,7 @@ viscosity_IB = zeros(N,length(models))
 
 #Lotgering
 for i in 1:length(models)
-    viscosity[:,i] = Lotgering_viscosity.(models[i],P,T_range[:]) 
+    viscosity[:,i] = IB_viscosity_new.(models[i],P,T_range[:]) 
 end
 
 for i in 1:length(models)

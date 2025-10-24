@@ -1,3 +1,33 @@
+
+csv_phase("Training Data/Heptane DETHERM.csv",SAFTgammaMie(["Heptane"]),false)
+
+function csv_phase(csv_path::String, model, remove_vapour::Bool=false)
+    # Read CSV
+    df = CSV.read(csv_path, DataFrame)
+    
+    # Extract pressure and temperature columns (1st and 2nd)
+    pressure = df[:, 1]
+    temperature = df[:, 2]
+    
+    # Identify phase using Clapeyron
+    phases = Clapeyron.identify_phase.(model, pressure, temperature)
+    
+    # Add phase column
+    df[!, :Phase] = phases
+    
+    # Optionally remove vapour phase rows
+    if remove_vapour
+        df = filter(row -> row.Phase != :vapour, df)
+    end
+    vapour_count = count(==( :vapour ), phases)
+    println("Number of vapour phase entries: $vapour_count")
+    # Write back to the same CSV
+    CSV.write(csv_path, df)
+
+    return df
+end
+
+
 function σ_OFE(model::EoSModel)
     """
     sigma pure fluid equivalent
