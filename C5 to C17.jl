@@ -34,7 +34,7 @@ viscosity_IB = zeros(N,length(models))
 
 #Lotgering
 for i in 1:length(models)
-    viscosity[:,i] = IB_viscosity_new.(models[i],P,T_range[:]) 
+    viscosity[:,i] = IB_viscosity_test.(models[i],P,T_range[:]) 
 end
 
 for i in 1:length(models)
@@ -162,7 +162,7 @@ for i in 1:length(models)
     T_experimental = exp_data[i][:,2]
     n_experimental = exp_data[i][:,3]
     P_experimental = exp_data[i][:,1] 
-    n_calculated = IB_viscosity_new.(models[i],P_experimental,T_experimental) 
+    n_calculated = IB_viscosity_test.(models[i],P_experimental,T_experimental) 
 
     AAD[i] = sum(abs.( (n_experimental .- n_calculated)./n_experimental))/length(P_experimental)
 end

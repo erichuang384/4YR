@@ -5,6 +5,10 @@ include("bell_functions.jl")
 
 
 models = [
+    SAFTgammaMie(["Butane"]),
+    SAFTgammaMie(["Pentane"]),
+    SAFTgammaMie(["Hexane"]),
+    SAFTgammaMie(["Heptane"]),
     SAFTgammaMie(["Octane"]),
     SAFTgammaMie([("Nonane",["CH3"=>2,"CH2"=>7])]),
     SAFTgammaMie(["Decane"]),
@@ -21,7 +25,7 @@ models = [
 
 #models = [model_pentane, model_hexane, model_heptane, model_octane, model_nonane, model_decane]
 
-labels = ["Octane","Nonane", "Decane" ,"Undecane","Dodecane", "Tridecane","Tetradecane","Pentadecane", "Hexadecane","Heptadecane"]
+labels = ["Butane","Pentane","Hexane","Heptane","Octane","Nonane", "Decane" ,"Undecane","Dodecane", "Tridecane","Tetradecane","Pentadecane", "Hexadecane","Heptadecane"]
 
 #experimental values
 exp_nonane = CSV.read("Validation Data/Nonane DETHERM.csv", DataFrame)
@@ -30,6 +34,10 @@ exp_tridecane = CSV.read("Validation Data/Tridecane DETHERM.csv", DataFrame)
 exp_pentadecane = CSV.read("Validation Data/Pentadecane DETHERM.csv", DataFrame)
 exp_heptadecane = CSV.read("Validation Data/Heptadecane DETHERM.csv", DataFrame)
 
+exp_butane = CSV.read("Training Data/Butane DETHERM.csv", DataFrame)
+exp_pentane =  CSV.read("Training Data/Pentane DETHERM.csv", DataFrame)
+exp_hexane =  CSV.read("Training Data/Hexane DETHERM.csv", DataFrame)
+exp_heptane =  CSV.read("Training Data/Heptane DETHERM.csv", DataFrame)
 exp_octane = CSV.read("Training Data/Octane DETHERM.csv", DataFrame)
 exp_decane =  CSV.read("Training Data/Decane DETHERM.csv", DataFrame)
 exp_dodecane =  CSV.read("Training Data/Dodecane DETHERM.csv", DataFrame)
@@ -37,7 +45,7 @@ exp_tetradecane =  CSV.read("Training Data/Tetradecane DETHERM.csv", DataFrame)
 exp_hexadecane =  CSV.read("Training Data/Hexadecane DETHERM.csv", DataFrame)
 
 
-exp_data = [exp_octane, exp_nonane, exp_decane, exp_undecane, exp_dodecane, exp_tridecane, exp_tetradecane, exp_pentadecane, exp_hexadecane, exp_heptadecane] 
+exp_data = [exp_butane, exp_pentane, exp_hexane, exp_heptane ,exp_octane, exp_nonane, exp_decane, exp_undecane, exp_dodecane, exp_tridecane, exp_tetradecane, exp_pentadecane, exp_hexadecane, exp_heptadecane] 
 
 AAD = zeros(length(models))
 
@@ -46,7 +54,7 @@ for i in 1:length(models)
     T_exp = exp_data[i][:,2]
     n_exp = exp_data[i][:,3]
     P_exp = exp_data[i][:,1] 
-    n_calc = IB_viscosity.(models[i],P_exp,T_exp) 
+    n_calc = IB_viscosity_test.(models[i],P_exp,T_exp) 
 
     AAD[i] = sum(abs.( (n_exp .- n_calc)./n_exp))/length(P_exp)
 end
@@ -67,14 +75,14 @@ println("AAD = ", AAD)
 #exp_hexadecane.AAD = AAD_hexadecane
 #CSV.write("Training Data/Hexadecane DETHERM.csv", exp_hexadecane)
 
-AAD_octane = abs.(exp_hexadecane[:,3] .- IB_viscosity.(models[9],exp_hexadecane[:,1],exp_hexadecane[:,2]))./exp_hexadecane[:,3]
+#AAD_octane = abs.(exp_hexadecane[:,3] .- IB_viscosity.(models[9],exp_hexadecane[:,1],exp_hexadecane[:,2]))./exp_hexadecane[:,3]
 
-exp_hexadecane.AAD = AAD_hexadecane
-CSV.write("Training Data/Hexadecane DETHERM.csv", exp_hexadecane)
+#exp_hexadecane.AAD = AAD_hexadecane
+#CSV.write("Training Data/Hexadecane DETHERM.csv", exp_hexadecane)
 
 
 #Scatter of AAD vs entropy for pentadecane
-
+#=
 T_exp = exp_data[8][:,2]
 n_exp = exp_data[8][:,3]
 P_exp = exp_data[8][:,1] 
@@ -88,7 +96,7 @@ AAD_res_ent = scatter(res_ent,AAD,
     ylabel = L"AAD\%",
     label = false,
     grid = false)
-
+=#
 
 
 
@@ -102,7 +110,7 @@ for i in 1:length(models)
     T_exp = data[:,2]
     n_exp = data[:,3]
 
-    n_calc = IB_viscosity.(model, P_exp, T_exp)
+    n_calc = IB_viscosity_test.(model, P_exp, T_exp)
     AAD = ((n_exp .- n_calc) ./ n_exp) .* 100
 
     res_ent = entropy_res.(model, P_exp, T_exp) ./ (-Rgas())
@@ -129,7 +137,11 @@ p_all[7]
 p_all[8]
 p_all[9]
 p_all[10]
+p_all[11]
+p_all[12]
+p_all[13]
+p_all[14]
 
 #savefig(p_all[1],"AAD vs res ent Octane")
-savefig(p_all[5],"AD vs res ent Dodecane")
+#savefig(p_all[5],"AD vs res ent Dodecane")
 
