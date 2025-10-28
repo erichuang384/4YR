@@ -25,7 +25,7 @@ plot_benzene_1bar = scatter(exp_data[:,2], exp_data[:,3],
     lw=:3)
     plot!(plot_benzene_1bar,T_range,visc_calc_temp,
     color =:green,
-    label = "Temperature xi",
+    label = "Temperature Dependence",
     lw=:3)
 
 # AAD 
@@ -71,7 +71,7 @@ visc_untrain = IB_viscosity_3param_T.(model,exp_data[:,1],exp_data[:,2])
 AAD_1bar = sum(abs.(exp_data[:,3] .- visc_untrain)./exp_data[:,3])/length(visc_untrain)
 plot_benzene_1bar
 
-#savefig(plot_benzene_1bar,"Benzene 1 bar Temp xi")
+savefig(plot_benzene_1bar,"Benzene 1 bar Temp xi")
 print(AAD_train)
 print(AAD_1bar)
 plot_benzene_1bar

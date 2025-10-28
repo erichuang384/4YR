@@ -54,7 +54,7 @@ for i in 1:length(models)
     T_exp = exp_data[i][:,2]
     n_exp = exp_data[i][:,3]
     P_exp = exp_data[i][:,1] 
-    n_calc = IB_viscosity_test.(models[i],P_exp,T_exp) 
+    n_calc = IB_viscosity.(models[i],P_exp,T_exp) 
 
     AAD[i] = sum(abs.( (n_exp .- n_calc)./n_exp))/length(P_exp)
 end
@@ -110,7 +110,7 @@ for i in 1:length(models)
     T_exp = data[:,2]
     n_exp = data[:,3]
 
-    n_calc = IB_viscosity_test.(model, P_exp, T_exp)
+    n_calc = IB_viscosity.(model, P_exp, T_exp)
     AAD = ((n_exp .- n_calc) ./ n_exp) .* 100
 
     res_ent = entropy_res.(model, P_exp, T_exp) ./ (-Rgas())

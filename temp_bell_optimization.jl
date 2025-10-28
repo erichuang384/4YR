@@ -1,3 +1,111 @@
+function IB_pure_const(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; ξ = 1, C_i = 0.0 )
+	"""
+	Overall Viscosity using method proposed by Ian Bell, 3 parameters
+	"""
+	n_g = [0.30136975, -0.11931025, 0.02848] # global parameters
+	#ξ_pure = zeros(length(z))
+	#n = model.groups.n_groups[1]
+
+	ξ_mix = ξ #* (1-ξ_T*log(T))
+    C = C_i
+	#ξ_mix = ξ
+	R = Rgas()
+	s_res = entropy_res(model, P, T, z)
+	s_red = -s_res ./ R
+
+	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.75)) - C
+
+	N_A = Clapeyron.N_A
+	k_B = Clapeyron.k_B
+
+	ρ_molar = molar_density(model, P, T, z)
+	ρ_N = ρ_molar .* N_A
+
+	Mw = Clapeyron.molecular_weight(model, z)
+	m = Mw / N_A
+
+	n_res = (n_reduced .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) ./ ((s_red) .^ (2 / 3))
+
+	if length(z) == 1
+		viscosity = IB_CE(model, T) + n_res
+	else
+		viscosity = IB_CE_mix(model, T, z) + n_res
+	end
+
+	return viscosity
+end
+
+function IB_pure_optimize(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; ξ = 1)
+	"""
+	Overall Viscosity using method proposed by Ian Bell, 3 parameters
+	"""
+	n_g = [0.30136975, -0.11931025, 0.0278307626] # global parameters
+	#ξ_pure = zeros(length(z))
+	#n = model.groups.n_groups[1]
+
+	ξ_mix = ξ #* (1-ξ_T*log(T))
+	#ξ_mix = ξ
+	R = Rgas()
+	s_res = entropy_res(model, P, T, z)
+	s_red = -s_res ./ R
+
+	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.75)) - 1
+
+	N_A = Clapeyron.N_A
+	k_B = Clapeyron.k_B
+
+	ρ_molar = molar_density(model, P, T, z)
+	ρ_N = ρ_molar .* N_A
+
+	Mw = Clapeyron.molecular_weight(model, z)
+	m = Mw / N_A
+
+	n_res = (n_reduced .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) ./ ((s_red) .^ (2 / 3))
+
+	if length(z) == 1
+		viscosity = IB_CE(model, T) + n_res
+	else
+		viscosity = IB_CE_mix(model, T, z) + n_res
+	end
+
+	return viscosity
+end
+
+function IB_pure_optimize_T(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; ξ = 1, ξ_T = 1)
+	"""
+	Overall Viscosity using method proposed by Ian Bell, 3 parameters
+	"""
+	n_g = [0.30136975, -0.11931025, 0.0278307626] # global parameters
+	#ξ_pure = zeros(length(z))
+	#n = model.groups.n_groups[1]
+
+	ξ_mix = ξ * (1-ξ_T*log(T))
+	#ξ_mix = ξ
+	R = Rgas()
+	s_res = entropy_res(model, P, T, z)
+	s_red = -s_res ./ R
+
+	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.75)) - 1
+
+	N_A = Clapeyron.N_A
+	k_B = Clapeyron.k_B
+
+	ρ_molar = molar_density(model, P, T, z)
+	ρ_N = ρ_molar .* N_A
+
+	Mw = Clapeyron.molecular_weight(model, z)
+	m = Mw / N_A
+
+	n_res = (n_reduced .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) ./ ((s_red) .^ (2 / 3))
+
+	if length(z) == 1
+		viscosity = IB_CE(model, T) + n_res
+	else
+		viscosity = IB_CE_mix(model, T, z) + n_res
+	end
+
+	return viscosity
+end
 
 
 
@@ -66,41 +174,6 @@ function IB_viscosity_n_g_3(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; n_g
 	return viscosity
 end
 
-function IB_varyT_pure_optimize(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; ξ = 1, ξ_T = 0)
-	"""
-	Overall Viscosity using method proposed by Ian Bell, 3 parameters
-	"""
-	n_g = [0.30136975, -0.11931025, 0.02531175] # global parameters
-	#ξ_pure = zeros(length(z))
-	#n = model.groups.n_groups[1]
-
-	#ξ_mix = ξ * (1-ξ_T/T) * n[1]
-	ξ_mix = ξ
-	R = Rgas()
-	s_res = entropy_res(model, P, T, z)
-	s_red = -s_res ./ R
-
-	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.8)) - 1
-
-	N_A = Clapeyron.N_A
-	k_B = Clapeyron.k_B
-
-	ρ_molar = molar_density(model, P, T, z)
-	ρ_N = ρ_molar .* N_A
-
-	Mw = Clapeyron.molecular_weight(model, z)
-	m = Mw / N_A
-
-	n_res = (n_reduced .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) ./ ((s_red) .^ (2 / 3))
-
-	if length(z) == 1
-		viscosity = IB_CE(model, T) + n_res
-	else
-		viscosity = IB_CE_mix(model, T, z) + n_res
-	end
-
-	return viscosity
-end
 
 function IB_viscosity_global_2_6(model::EoSModel, P, T, z = StaticArrays.SA[1.0];
 	ξ_i = Dict("CH3" => 0.4085265, "CH2" => 0.0383325),
@@ -184,7 +257,7 @@ function IB_viscosity_TP(model::EoSModel, P, T, z = StaticArrays.SA[1.0];
 	s_res = entropy_res(model, P, T, z)
 	s_red = -s_res ./ R
 
-	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.75)) - C_T
+	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.75)) - 1.0/C_T
 
 	N_A = Clapeyron.N_A
 	k_B = Clapeyron.k_B

@@ -1,23 +1,38 @@
-using Clapeyron, CSV, DataFrames, Plots, LaTeXStrings, Metaheuristics
-using Statistics
-using Random
-#include(joinpath(dirname(@__FILE__), "..", "bell_functions.jl"))
-#include("optimization_functions.jl")
+using CMAEvolutionStrategy
+using Statistics, Random
+using DataFrames
+using Plots
+using LaTeXStrings, CSV, StaticArrays, Clapeyron
 
-models = [SAFTgammaMie(["Cyclopentane"]),
-        SAFTgammaMie(["Cyclohexane"])]
-models = [SAFTgammaMie(["Cyclohexane"])]
+#
+#include("temp_bell_optimization.jl")
+#include("Parameter Estimation/optimization_functions.jl")
+# Allow Ctrl+C to interrupt instead of killing Julia
+Base.exit_on_sigint(false)
 
-
-# === Objective Function for Multiple Models ===
+function load_experimental_data(path::AbstractString)
+    """
+    Format experimental data from CSV
+    """
+    df = CSV.read(path, DataFrame)
+    # normalize column names to lowercase symbols
+    rename!(df, Symbol.(lowercase.(String.(names(df)))))
+    required = [:p, :t, :viscosity]
+    #for c in required
+    #    @assert c ∈ names(df) "Missing column: $c in $path. Expected columns: $(required)."
+    #end
+    return df
+end
+# === Objective Function (same as before) ===
 function make_global_objective(models::Vector, datasets::Vector{DataFrame})
     """
     Returns an objective function f(x) where:
-    ξ
+    x = [xi_CH3, xi_CH2, xiT_CH3, xiT_CH2, n_g_3]
     """
     function objective(x)
-        ξ = x[1]
-        #ξ_T = x[2]
+        ξ =  x[1]
+        C_i =  x[2]
+
         total_error = 0.0
 
         for (model, data) in zip(models, datasets)
@@ -25,76 +40,90 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
             Tvals = data.t
             μ_exp = data.viscosity
 
-            #μ_pred = IB_3param_T_pure_optimize.(model, Pvals[:], Tvals[:]; ξ = ξ)
-            μ_pred = IB_3param_T_pure_optimize.(model, Pvals[:], Tvals[:]; ξ = ξ)
+            try
+                μ_pred = IB_pure_const.(model, Pvals[:], Tvals[:]; ξ = ξ, C_i = C_i)
+                if any(!isfinite, μ_pred)
+                    total_error += 1e10
+                    continue
+                end
 
-            # sum of squared relative errors
-            total_error = sum(((μ_exp .- μ_pred)./μ_exp) .^ 2)/length(Pvals)
-            #total_error += sum((μ_exp .- μ_pred).^2)
+                total_error = sum(((μ_exp .- μ_pred) ./ μ_exp).^2) / length(Pvals)
+
+            catch err
+                @warn "Invalid point encountered during optimization" x = x error = err
+                total_error += 1e10
+            end
         end
 
-        return total_error
+        return isfinite(total_error) ? total_error : 1e10
     end
     return objective
 end
 
 
-# === Global Optimization ===
+# === CMA-ES Optimization ===
+function estimate_xi_CH3_CH2_CMA!(models::Vector, datasets::Vector{DataFrame};
+    lower = [0.4, 0.0],
+    upper = [0.6,1.0],
+    seed = 42, σ0 = 0.1, max_iters = 5000)
 
-function estimate_ξ!(models::Vector, datasets::Vector{DataFrame};
-                              lower = [0.0], upper = [2.0],
-                              seed = 1234, max_iters = 5000)
-
-    println("Models being trained:", models)
-
-    rng = MersenneTwister(seed)
-    Random.seed!(rng)
-
+    Random.seed!(seed)
     obj = make_global_objective(models, datasets)
 
-    bounds = hcat(lower, upper)'  # 2×2 matrix (rows = bounds)
+    # Initial guess: midpoint of bounds
+    x0 = (lower .+ upper) ./ 2
 
-    method = DE()
-    method.options = Options(iterations = max_iters,
-                             f_calls_limit = 1_000_000,
-                             store_convergence = true,
-                             seed = seed)
+    println("Starting CMA-ES optimization (xi_CH3, xi_CH2, ...) — seed=$seed")
+    println("Initial guess: ", x0)
 
-    logger = function (status)
-        if isdefined(status, :iteration)
-            if status.iteration % 50 == 0 || status.iteration == 1
-                println("iter=$(status.iteration) f_calls=$(status.f_calls) best_sol=$(status.best_sol)")
+    iter_counter = Ref(0)
+
+    result = minimize(
+        obj,
+        x0,
+        σ0;
+        lower = lower,
+        upper = upper,
+        seed = seed,
+        verbosity = 2,
+        maxiter = max_iters,
+        ftol = 1e-9,
+        callback = (opt, x, fx, ranks) -> begin
+            iter_counter[] += 1
+            if iter_counter[] % 20 == 0
+                println("Iter $(iter_counter[]): fmin=$(minimum(fx)) best=$(xbest(opt))")
             end
         end
-    end
+    )
 
-    println("Starting global optimization (ξ) — bounds: $(lower)–$(upper), seed=$(seed), max_iters=$(max_iters)")
 
-    state = Metaheuristics.optimize(obj, bounds, method; logger = logger)
-
-    result = Metaheuristics.get_result(method)
-    println("\nOptimization complete.")
+    println("\nCMA-ES optimization complete.")
+    println("Best parameters found:")
+    println(xbest(result))
+    println("Objective value = ", fbest(result))
 
     return result
 end
-#models = [model]
-data_paths = ["Training DATA/Cyclopentane DETHERM.csv",
-    "Training DATA/Cyclohexane DETHERM.csv"]
+
+
+# === Example Usage ===
+models = [SAFTgammaMie(["cyclohexane"])]
+
+
 data_paths = ["Training DATA/Cyclohexane DETHERM.csv"]
 
 datasets = [load_experimental_data(p) for p in data_paths]
-#=
-data_chex = datasets[2]
-list = Clapeyron.identify_phase.(models[2],data_chex[:,1],data_chex[:,2])
 
+# Run optimization
+res = estimate_xi_CH3_CH2_CMA!(
+    models,
+    datasets;
+    lower =  [0.0,-10.0],
+    upper =  [1.5, 10.0],
+    seed = 42,
+    σ0 = 0.1,
+    max_iters = 10000
+)
 
-csv_path = "Training DATA/Cyclohexane DETHERM.csv"
-df = CSV.read(csv_path, DataFrame)
-df[!, :Phase] = list
-CSV.write("Training DATA/Cyclohexane DETHERM.csv",df)
-=#
-
-# Run global estimation
-res = estimate_ξ!(models, datasets; lower = [0.0], upper = [2.0], seed = 42, max_iters = 5000)
-println(res)
-println("Best ξ = ", res.best_sol)
+println("\nBest solution (CMA-ES): ", xbest(res))
+println("Best objective value: ", fbest(res))

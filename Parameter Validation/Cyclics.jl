@@ -16,11 +16,11 @@ T_range = [LinRange(minimum(exp_data[1][:,2]),maximum(exp_data[1][:,2]),N), LinR
 #visc_calc = IB_viscosity_3param.(model,p,T_range)
 
 
-visc_calc_cpent = IB_viscosity_pure.(models[1],p,T_range[1],0.152268*5)
-#visc_calc_cpent_T = IB_viscosity_3param_T.(models[1],p,T_range[1])
+visc_calc_cpent = IB_viscosity.(models[1],p,T_range[1])
+visc_calc_cpent_T = IB_viscosity_3param_T.(models[1],p,T_range[1])
 
-visc_calc_chex = IB_viscosity_pure.(models[2],p,T_range[2],0.126903*6)
-#visc_calc_chex_T = IB_viscosity_3param_T.(models[2],p,T_range[2])
+visc_calc_chex = IB_viscosity.(models[2],p,T_range[2])
+visc_calc_chex_T = IB_viscosity_3param_T.(models[2],p,T_range[2])
 
 
 plot_cpent_1bar = scatter(exp_cyclopentane[:,2], exp_cyclopentane[:,3],
@@ -37,7 +37,7 @@ plot_cpent_1bar = scatter(exp_cyclopentane[:,2], exp_cyclopentane[:,3],
     lw=:3)
     plot!(plot_cpent_1bar,T_range[1],visc_calc_cpent_T,
     color =:green,
-    label = "Temperature xi",
+    label = "Temperature Dependent",
     lw=:3)
 
 plot_chex_1bar = scatter(exp_cyclohexane[:,2], exp_cyclohexane[:,3],
@@ -52,9 +52,10 @@ plot_chex_1bar = scatter(exp_cyclohexane[:,2], exp_cyclohexane[:,3],
     color =:blue,
     label = false,
     lw=:3)
+    
     plot!(plot_chex_1bar,T_range[2],visc_calc_chex_T,
     color =:green,
-    label = "Temperature xi",
+    label = "Temperature Dependent",
     lw=:3)
 
 # AD vs s+
@@ -77,7 +78,7 @@ for i in 1:length(models)
     T_exp = data[:,2]
     n_exp = data[:,3]
 
-    n_calc = IB_viscosity_pure.(model, P_exp, T_exp,0.76134)
+    n_calc = IB_viscosity_test.(model, P_exp, T_exp,0.76134)
     AAD = ((n_exp .- n_calc) ./ n_exp) .* 100
 
     res_ent = entropy_res.(model, P_exp, T_exp) ./ (-Rgas())
@@ -100,12 +101,12 @@ p_all[2]
 # AAD calculations
 # of training data
 train_data_chex = CSV.read("Training DATA/Cyclohexane DETHERM.csv",DataFrame)
-visc_train_chex = IB_viscosity_3param_T.(models[2],train_data_chex[:,1],train_data_chex[:,2])
+visc_train_chex = IB_viscosity_test.(models[2],train_data_chex[:,1],train_data_chex[:,2])
 AAD_train_chex = sum(abs.(train_data_chex[:,3] .- visc_train_chex)./train_data_chex[:,3])/length(visc_train_chex)
 #0.267 for T, 0.104 for no T
 
 train_data_cpent = CSV.read("Training DATA/Cyclopentane DETHERM.csv",DataFrame)
-visc_train_cpent = IB_viscosity_3param_T.(models[1],train_data_cpent[:,1],train_data_cpent[:,2])
+visc_train_cpent = IB_viscosity_test.(models[1],train_data_cpent[:,1],train_data_cpent[:,2])
 AAD_train_cpent = sum(abs.(train_data_cpent[:,3] .- visc_train_cpent)./train_data_cpent[:,3])/length(visc_train_cpent)
 #0.126 for T, 1.65 for no T
 

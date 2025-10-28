@@ -4,7 +4,7 @@ using DataFrames
 using Plots
 using LaTeXStrings, CSV, StaticArrays, Clapeyron
 
-#
+#include("bell_functions.jl")
 #include("temp_bell_optimization.jl")
 #include("Parameter Estimation/optimization_functions.jl")
 # Allow Ctrl+C to interrupt instead of killing Julia
@@ -33,7 +33,7 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
             μ_exp = data.viscosity
 
             try
-                μ_pred = IB_viscosity_TP.(model, Pvals[:], Tvals[:]; ξ_i = ξ_i, n_g_3 = n_g_3,C_i = C_i)
+                μ_pred = IB_viscosity_TP.(model, Pvals[:], Tvals[:]; ξ_i = ξ_i, n_g_3 = n_g_3, C_i = C_i)
                 if any(!isfinite, μ_pred)
                     total_error += 1e10
                     continue
@@ -125,8 +125,8 @@ datasets = [load_experimental_data(p) for p in data_paths]
 res = estimate_xi_CH3_CH2_CMA!(
     models,
     datasets;
-    lower =  [0.38, 0.03, 0.0, 0.0, 0.025],
-    upper =  [0.45,0.05, 0.1, 1.0, 0.035],
+    lower =  [0.35, 0.035, 0.025, 0.1, -0.5],
+    upper =  [0.45,0.05, 0.03, 2.0, 0.5],
     seed = 42,
     σ0 = 0.1,
     max_iters = 10000
