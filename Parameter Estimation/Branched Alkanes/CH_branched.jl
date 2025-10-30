@@ -1,29 +1,72 @@
-using CMAEvolutionStrategy
-using Statistics, Random
-using DataFrames
-using Plots
-using LaTeXStrings, CSV, StaticArrays, Clapeyron
+using CMAEvolutionStrategy, Statistics, Random, DataFrames, Plots, LaTeXStrings, CSV, StaticArrays, Clapeyron
 
-#include("bell_functions.jl")
-#include("temp_bell_optimization.jl")
-#include("Parameter Estimation/optimization_functions.jl")
-# Allow Ctrl+C to interrupt instead of killing Julia
+function IB_viscosity_CH(model::EoSModel, P, T, z = StaticArrays.SA[1.0];
+	ξ_i = Dict("CH3" => 2.09866287580761, "CH2" => 0.182534356794281, "CH" => -0.4))
+
+	"""
+	Overall Viscosity using method proposed by Ian Bell, 3 parameters
+	"""
+	n_g = [4.931211447,	-4.380364487,	1.569276144] # global parameters
+	#ξ_pure = zeros(length(z))
+
+    ξ_pure = zeros(length(z))
+
+	for j ∈ 1:length(z)
+        ξ = 0
+
+		# GCM determination of ξ, doesn't yet include second order contributions
+		groups = model.groups.groups[j] #n-elemnet Vector{string}
+		num_groups = model.groups.n_groups[j] #n-element Vector{Int}
+		for i in 1:length(groups)
+
+			xi = ξ_i[ξ_i[:, 1].==groups[i], 2][1]
+
+			ξ = ξ + xi  * num_groups[i]
+
+			ξ_pure[j] = ξ
+		end
+
+	end
+
+	ξ_mix = sum(z .* ξ)
+	R = Rgas()
+	s_res = entropy_res(model, P, T, z)
+	s_red = -s_res ./ R
+
+    ln_n_reduced = n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.8)
+	n_reduced = exp(ln_n_reduced) .- 1.0 
+
+	N_A = Clapeyron.N_A
+	k_B = Clapeyron.k_B
+
+	ρ_molar = molar_density(model, P, T, z)
+	ρ_N = ρ_molar .* N_A
+
+	Mw = Clapeyron.molecular_weight(model, z)
+	m = Mw / N_A
+
+	n_res = (n_reduced .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) ./ ((s_red) .^ (2 / 3))
+
+	if length(z) == 1
+		viscosity = IB_CE(model, T) + n_res
+	else
+		viscosity = IB_CE_mix(model, T, z) + n_res
+	end
+
+	return viscosity
+end
+# ==== Optimization Algorithm
 Base.exit_on_sigint(false)
 
 
-# === Objective Function (same as before) ===
+# === Objective Function  ===
 function make_global_objective(models::Vector, datasets::Vector{DataFrame})
     """
     Returns an objective function f(x) where:
     x = [xi_CH3, xi_CH2, xiT_CH3, xiT_CH2, n_g_3]
     """
     function objective(x)
-        ξ_i = Dict("CH3" => x[1], "CH2" => x[2])
-        #ξ_T = Dict("CH3" => x[3], "CH2" => x[4])
-        n_g_1 = x[3]
-        n_g_2 = x[4]
-        n_g_3 = x[5]
-        #n_exp = x[6]
+        ξ_i = Dict("CH3" => 2.09866287580761, "CH2" => 0.182534356794281, "CH" => x[1])
 
         total_error = 0.0
 
@@ -33,7 +76,7 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
             μ_exp = data.viscosity
 
             try
-                μ_pred = IB_viscosity_TP_GC.(model, Pvals[:], Tvals[:]; ξ_i = ξ_i,n_g_1 = n_g_1, n_g_2 = n_g_2 , n_g_3 = n_g_3)
+                μ_pred = IB_viscosity_TP.(model, Pvals[:], Tvals[:]; ξ_i = ξ_i)
 
                 if any(!isfinite, μ_pred)
                     total_error += 1e10
@@ -56,8 +99,8 @@ end
 
 # === CMA-ES Optimization ===
 function estimate_xi_CH3_CH2_CMA!(models::Vector, datasets::Vector{DataFrame};
-    lower = [0.4, 0.02, -1.0, -1.0, 0.02],
-    upper = [0.6, 0.08, 0.0, 0.1, 0.08],
+    lower = [-5.0],
+    upper = [5.0],
     seed = 42, σ0 = 0.1, max_iters = 5000)
 
     Random.seed!(seed)
@@ -102,23 +145,23 @@ end
 # === Example Usage ===
 models = [
     SAFTgammaMie(["Pentane"]),
-    #SAFTgammaMie(["Hexane"]),
+    SAFTgammaMie(["Hexane"]),
     SAFTgammaMie(["Octane"]),
-    #SAFTgammaMie(["Decane"]),
+    SAFTgammaMie(["Decane"]),
     SAFTgammaMie(["Dodecane"]),
-    #SAFTgammaMie(["Tridecane"]),
-    #SAFTgammaMie(["Pentadecane"]),
+    SAFTgammaMie(["Tridecane"]),
+    SAFTgammaMie(["Pentadecane"]),
     SAFTgammaMie(["Hexadecane"])
 ]
 
 data_paths = [
     "Training DATA/Pentane DETHERM.csv",
-    #"Training DATA/Hexane DETHERM.csv",
+    "Training DATA/Hexane DETHERM.csv",
     "Training DATA/Octane DETHERM.csv",
-    #"Training DATA/Decane DETHERM.csv",
+    "Training DATA/Decane DETHERM.csv",
     "Training DATA/Dodecane DETHERM.csv",
-    #"Validation DATA/Tridecane DETHERM.csv",
-    #"Validation DATA/Pentadecane DETHERM.csv",
+    "Validation DATA/Tridecane DETHERM.csv",
+    "Validation DATA/Pentadecane DETHERM.csv",
     "Training DATA/Hexadecane DETHERM.csv"
 ]
 
@@ -129,12 +172,11 @@ datasets = [load_experimental_data(p) for p in data_paths]
 res = estimate_xi_CH3_CH2_CMA!(
     models,
     datasets;
-    lower = [0.0, -1.0, 0.0, -1.0, 0.0],
-    upper =  upper = [1.0, 1.0, 1.0, 0.0, 1.0],
+    lower =  [0.5, 0.0, -5.0, -5.0, -5.0, -5.0],
+    upper =  [3.5, 1.0,  5.0, 5.0,  5.0,  5.0],
     seed = 42,
     σ0 = 0.1,
     max_iters = 10000
 )
 
 println("\nBest solution (CMA-ES): ", xbest(res))
-println("Best objective value: ", fbest(res))

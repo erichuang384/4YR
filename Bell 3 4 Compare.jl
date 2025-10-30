@@ -5,19 +5,28 @@ include("bell_functions.jl")
 L = 1000
 s_xi = LinRange(0,20,L)
 
-#n_g_3_og = [0.30136975, -0.11931025, 0.02531175]
+n_g_3_og = [0.30136975, -0.11931025, 0.02531175]
 
-#n_exp = [1.8, 2.4, 2.8]
+n_exp = [1.8, 2.4, 2.8]
 
-n_g_3_og = [0.63715, -0.17774, 0.033606]
-n_exp = [ 1.415, 2.139, 2.609]
+n_g_3_og = [1.974163, -1.1569, 0.314623]
+n_exp = [ 1.8, 2.4, 2.8]
 
 #n_g_3_og = [0.7918253, -0.4792172, 0.06225174]
 #n_exp = [ 1.76, 2.134, 2.608]
 
 
-ln_n_red_3_og  = n_g_3_og[1] .* (s_xi) .^ n_exp[1] + n_g_3_og[2] .* (s_xi) .^ n_exp[2] + n_g_3_og[3] .* (s_xi) .^ n_exp[3] .- 0.75
+ln_n_red_3_og  = (n_g_3_og[1] .* (s_xi) .^ n_exp[1] + n_g_3_og[2] .* (s_xi) .^ n_exp[2] + n_g_3_og[3] .* (s_xi) .^ n_exp[3]) #+C*log(T)
 n_red_3_og  = exp.(n_g_3_og[1] .* (s_xi) .^ (1.8) + n_g_3_og[2] .* (s_xi) .^ (2.4) + n_g_3_og[3] .* (s_xi) .^ (2.8)) .- 1.0
+
+# 4 param
+
+n_g_4 = [-0.448046, 1.012681, -0.381869, 0.054674]
+
+
+
+ln_n_red_4 = n_g_4[1] .* (s_xi) + n_g_4[2] .* (s_xi) .^ (1.5) + n_g_4[3] .* (s_xi) .^ (2) + n_g_4[4] .* (s_xi) .^ (2.5)
+
 
 #n_g_3 = [0.281, -0.105, 0.0258]
 #exponents = [1.7, 2.2, 2.5]
@@ -26,7 +35,7 @@ n_red_3_og  = exp.(n_g_3_og[1] .* (s_xi) .^ (1.8) + n_g_3_og[2] .* (s_xi) .^ (2.
 #exponents = [1.7, 2.3, 2.4]
 
 #exp_dodecane = CSV.read("Training Data/Octane DETHERM.csv", DataFrame)
-sexp_dodecane = CSV.read("Training Data/Dodecane DETHERM.csv", DataFrame)
+exp_dodecane = CSV.read("Training Data/Dodecane DETHERM.csv", DataFrame)
 model = SAFTgammaMie(["Dodecane"])
 
 function reduced_visc(model::EoSModel, P,T,visc)
@@ -58,7 +67,7 @@ eta_red = reduced_visc.(model,P,T,visc_exp)
 
 y_axis = log.(eta_red .+ 1)
 num_groups = model.groups.n_groups[1]
-xi =  0.4085265*num_groups[1] + 0.0383325*num_groups[2]
+xi =   0.4085265*num_groups[1] + 0.0383325*num_groups[2]
 x_axis = -entropy_res.(model,P,T)./(Rgas() .* xi)
 #=
 n_g_3 = [0.29136977, -0.1331025, 0.021]
@@ -73,6 +82,9 @@ lw =:3,
 label = false,
 xlabel = L"s^+ / \xi_\textrm{exp}",
 ylabel = L"ln(\eta_\textrm{res}^+ +1)")
+plot!(plot1,s_xi,ln_n_red_4,
+lw =:3,
+label = "4 param")
 scatter!(plot1,x_axis,y_axis,
 lw=:3,
 marker =:diamond,

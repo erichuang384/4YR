@@ -122,3 +122,17 @@ function Ω⃰(model::EoSModel, T)
 
     return exp(ln_Omega)
 end
+
+function load_experimental_data(path::AbstractString)
+    """
+    Format experimental data from CSV
+    """
+    df = CSV.read(path, DataFrame)
+    # normalize column names to lowercase symbols
+    rename!(df, Symbol.(lowercase.(String.(names(df)))))
+    required = [:p, :t, :viscosity]
+    #for c in required
+    #    @assert c ∈ names(df) "Missing column: $c in $path. Expected columns: $(required)."
+    #end
+    return df
+end

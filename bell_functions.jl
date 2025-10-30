@@ -37,21 +37,17 @@ function IB_viscosity_test(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters
 	"""
-	n_g = [0.30136975, -0.11931025, 0.027830762] # global parameters
+	n_g = [4.931216347208786, -4.380361669951116, 1.5692739255277655] # global parameters
 	ξ_pure = zeros(length(z))
+	#A =  7.809602262149181
+	#B = -0.34096357773369207
 
 	for j ∈ 1:length(z)
 
-		ξ_i = ["CH3" 0.209180413429028;
-			"CH2"  0.00386457794072489;
+		ξ_i = ["CH3" 2.0986652810214323;
+			"CH2"  0.18253549764390836;
 			"aCH"  0.88788;
 			"cCH2" 0.762199846/6]
-
-		ξ_T = ["CH3" -0.176630465717467;
-			"CH2"  -1.17274362771735;
-			"aCH"  0.0;
-			"cCH2" -0.03299]
-        
         ξ = 0
 
 		# GCM determination of ξ, doesn't yet include second order contributions
@@ -60,9 +56,8 @@ function IB_viscosity_test(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 		for i in 1:length(groups)
 
 			xi = ξ_i[ξ_i[:, 1].==groups[i], 2][1]
-			xi_T = ξ_T[ξ_T[:, 1].==groups[i], 2][1]
 
-			ξ = ξ + xi * (1 - xi_T * log(T)) * num_groups[i]
+			ξ +=  + xi* num_groups[i] #* (1 - xi_T * log(T)) 
 
 			ξ_pure[j] = ξ
 		end
@@ -74,8 +69,8 @@ function IB_viscosity_test(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	s_res = entropy_res(model, P, T, z)
 	s_red = -s_res ./ R
 
-	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.75)) - 1
-
+	ln_n_reduced = (n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.8))
+	n_reduced = exp(ln_n_reduced) - 1
 	N_A = Clapeyron.N_A
 	k_B = Clapeyron.k_B
 
@@ -170,8 +165,8 @@ function IB_viscosity(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters
 	"""
-	#n_g = [0.30136975, -0.11931025, 0.02531175] # global parameters
-	n_g = [0.7918253, -0.4792172, 0.06225174]
+	n_g = [0.30136975, -0.11931025, 0.02531175] # global parameters
+	#n_g = [0.7918253, -0.4792172, 0.06225174]
 	n_exp = [ 1.76, 2.134, 2.608]
 	ξ_pure = zeros(length(z))
 

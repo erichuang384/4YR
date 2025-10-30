@@ -54,50 +54,11 @@ for i in 1:length(models)
     T_exp = exp_data[i][:,2]
     n_exp = exp_data[i][:,3]
     P_exp = exp_data[i][:,1] 
-    n_calc = IB_viscosity.(models[i],P_exp,T_exp) 
+    n_calc = IB_viscosity_test.(models[i],P_exp,T_exp) 
 
     AAD[i] = sum(abs.( (n_exp .- n_calc)./n_exp))/length(P_exp)
 end
 println("AAD = ", AAD)
-
-#AAD_pentadecane = abs.(exp_pentadecane[:,3] .- IB_viscosity.(models[8],exp_pentadecane[:,1],exp_pentadecane[:,2]))./exp_pentadecane[:,3]
-
-#exp_pentadecane.AAD = AAD_pentadecane
-#CSV.write("Validation Data/Pentadecane DETHERM.csv", exp_pentadecane)
-
-#AAD_heptadecane = abs.(exp_heptadecane[:,3] .- IB_viscosity.(models[10],exp_heptadecane[:,1],exp_heptadecane[:,2]))./exp_heptadecane[:,3]
-
-#exp_heptadecane.AAD = AAD_heptadecane
-#CSV.write("Validation Data/Heptadecane DETHERM.csv", exp_heptadecane)
-
-#AAD_hexadecane = abs.(exp_hexadecane[:,3] .- IB_viscosity.(models[9],exp_hexadecane[:,1],exp_hexadecane[:,2]))./exp_hexadecane[:,3]
-
-#exp_hexadecane.AAD = AAD_hexadecane
-#CSV.write("Training Data/Hexadecane DETHERM.csv", exp_hexadecane)
-
-#AAD_octane = abs.(exp_hexadecane[:,3] .- IB_viscosity.(models[9],exp_hexadecane[:,1],exp_hexadecane[:,2]))./exp_hexadecane[:,3]
-
-#exp_hexadecane.AAD = AAD_hexadecane
-#CSV.write("Training Data/Hexadecane DETHERM.csv", exp_hexadecane)
-
-
-#Scatter of AAD vs entropy for pentadecane
-#=
-T_exp = exp_data[8][:,2]
-n_exp = exp_data[8][:,3]
-P_exp = exp_data[8][:,1] 
-n_calc = IB_viscosity.(models[8],P_exp,T_exp) 
-
-AAD = abs.( (n_exp .- n_calc)./n_exp).*100
-res_ent = entropy_res.(models[8],P_exp,T_exp)./(-Rgas())
-
-AAD_res_ent = scatter(res_ent,AAD,
-    xlabel= L"s^+",
-    ylabel = L"AAD\%",
-    label = false,
-    grid = false)
-=#
-
 
 
 p_all = []  # store plots
@@ -110,7 +71,7 @@ for i in 1:length(models)
     T_exp = data[:,2]
     n_exp = data[:,3]
 
-    n_calc = IB_viscosity.(model, P_exp, T_exp)
+    n_calc = IB_viscosity_test.(model, P_exp, T_exp)
     AAD = ((n_exp .- n_calc) ./ n_exp) .* 100
 
     res_ent = entropy_res.(model, P_exp, T_exp) ./ (-Rgas())
