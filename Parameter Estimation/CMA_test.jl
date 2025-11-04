@@ -19,13 +19,16 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
     """
     function objective(x)
         ξ_i = Dict("CH3" => x[1], "CH2" => x[2])
-        #ξ_T = Dict("CH3" => x[3], "CH2" => x[4])
-        #A = x[1]
-        #B = x[1]
-        n_g_1 = x[3]
-        n_g_2 = x[4]
-        n_g_3 = x[5]
-        n_g_4 = x[6]
+        ξ_T = Dict("CH3" => x[3], "CH2" => x[4])
+
+        n_g_1 = 2.54406045557944
+        n_g_2 = -1.92668179653528
+        n_g_3 = 0.59210973823464
+        gamma = 1.3016771263302
+        exp_1 = 1.8
+        exp_2 = 2.4
+        exp_3 = 2.8
+        #n_g_4 = x[6]
         #n_exp = x[6]
 
         total_error = 0.0
@@ -36,7 +39,8 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
             μ_exp = data.viscosity
 
             try
-                μ_pred = IB_viscosity_TP.(model, Pvals[:], Tvals[:]; ξ_i = ξ_i, n_g_1 = n_g_1, n_g_2 = n_g_2, n_g_3 = n_g_3, n_g_4 = n_g_4)
+                μ_pred = IB_viscosity_TP.(model, Pvals[:], Tvals[:]; ξ_i = ξ_i, ξ_T = ξ_T, n_g_1 = n_g_1, n_g_2 = n_g_2, n_g_3 = n_g_3, gamma = gamma,
+                exp_1 = exp_1, exp_2 = exp_2, exp_3 = exp_3)
 
                 if any(!isfinite, μ_pred)
                     total_error += 1e10
@@ -59,15 +63,15 @@ end
 
 # === CMA-ES Optimization ===
 function estimate_xi_CH3_CH2_CMA!(models::Vector, datasets::Vector{DataFrame};
-    lower = [0.4, 0.0, 0.0, 0.0, 0.0, 0.0],
-    upper = [0.6, 1.0, 1.0, 1.0, 1.0, 1.0],
+    lower = [0.4, 0.0, 0.0, 0.0],
+    upper = [0.6, 1.0, 1.0, 1.0],
     seed = 42, σ0 = 0.1, max_iters = 5000)
 
     Random.seed!(seed)
     obj = make_global_objective(models, datasets)
 
     # Initial guess: midpoint of bounds
-    x0 = (lower .+ upper) ./ 2
+    x0 = [0.7202188448494932, 0.0015352108884441732, 0.050728120975963714, -4.997162083601292]
 
     println("Starting CMA-ES optimization (xi_CH3, xi_CH2, ...) — seed=$seed")
     println("Initial guess: ", x0)
@@ -132,8 +136,8 @@ datasets = [load_experimental_data(p) for p in data_paths]
 res = estimate_xi_CH3_CH2_CMA!(
     models,
     datasets;
-    lower =  [0.5, 0.0, -5.0, -5.0, -5.0, -5.0],
-    upper =  [3.5, 1.0,  5.0, 5.0,  5.0,  5.0],
+    lower =  [0.0, -1.0, -1.0, -80.0],
+    upper =  [5.0, 1.0,   1.0, 10.0],
     seed = 42,
     σ0 = 0.1,
     max_iters = 10000

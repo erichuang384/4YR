@@ -109,17 +109,18 @@ end
 
 function IB_viscosity_TP(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; 
 	ξ_i = Dict("CH3" => 0.4, "CH2" => 0.3),
-    #C_i = Dict("CH3" => 0.0, "CH2" => 0.0))
-    n_g_1 = 0.025,  n_g_2 = 0.025, n_g_3 = 0.025, n_g_4 = 0.01)
+	ξ_T = Dict("CH3" => 0.4, "CH2" => 0.3),
+    n_g_1 = 0.2, n_g_2 = -0.4, n_g_3 = 0.02, gamma = 2.5, exp_1 = 1.8, exp_2 = 2.4, exp_3 = 2.8)
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters
 	"""
-	n_g = [n_g_1, n_g_2, n_g_3, n_g_4] # global parameters
-	#n_g = [3.64497040681416, -3.1168273646994, 1.06520168964963] 
+	n_g = [n_g_1, n_g_2, n_g_3] # global parameters
+	#n_g = [4.574185897,	-4.101146144,	1.458455701]
+	exp_i = [exp_1, exp_2,exp_3]
+	
 	#ξ_pure = zeros(length(z))
 
 	ξ = 0.0
-    #C_T = 0.0
 	groups = model.groups.groups[1]
 	num_groups = model.groups.n_groups[1]
     #T_c = crit_pure(model)
@@ -129,19 +130,19 @@ function IB_viscosity_TP(model::EoSModel, P, T, z = StaticArrays.SA[1.0];
 			error("ξ_i missing entry for group \"$g\".")
 		end
 		#C_T += C_i[g] * num_groups[i]
-		ξ += ξ_i[g] * num_groups[i] #* (1 + ξ_T[g] *(T/T_c[1]))
+		ξ += ξ_i[g] * num_groups[i] * (1 - ξ_T[g] * log(T))
 	end
 
 	ξ_mix = sum(z .* ξ)
 	R = Rgas()
 	s_res = entropy_res(model, P, T, z)
-	s_red = -s_res ./ R
-	#crit_point = crit_pure(model)
+	s_red = ((-s_res ./ R) ^ gamma) ./ log(T)
+
 	#ln_n_reduced = (n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.8))
 	#running in vscode
 	#ln_n_reduced = (n_g[1] .* (s_red ./ ξ_mix) + n_g[2] .* (s_red ./ ξ_mix) .^ (1.5) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.0) + n_g[4] .* (s_red ./ ξ_mix) .^ (2.5))
 
-	ln_n_reduced = (n_g[1] .* (1 ./ ξ_mix) + n_g[2] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[4] .* (s_red ./ ξ_mix) .^ (2.8))
+	ln_n_reduced = (n_g[1] .* (s_red ./ ξ_mix) .^ (exp_i[1]) + n_g[2] .* (s_red ./ ξ_mix) .^ (exp_i[2]) + n_g[3] .* (s_red ./ ξ_mix) .^ (exp_i[3]))
 
 	n_reduced = exp.(ln_n_reduced) .- 1.0
 	N_A = Clapeyron.N_A

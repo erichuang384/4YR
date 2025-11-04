@@ -1,8 +1,7 @@
 using Clapeyron, Plots, LinearAlgebra, CSV, DataFrames, LaTeXStrings, StaticArrays
 include("bell_functions.jl")
+include("model development.jl")
 #include("lotgering_functions.jl")
-
-
 
 models = [
     SAFTgammaMie(["Butane"]),
@@ -72,12 +71,12 @@ for i in 1:length(models)
     n_exp = data[:,3]
 
     n_calc = IB_viscosity_test.(model, P_exp, T_exp)
-    AAD = ((n_exp .- n_calc) ./ n_exp) .* 100
+    AAD_plot = ((n_exp .- n_calc) ./ n_exp) .* 100
 
     res_ent = entropy_res.(model, P_exp, T_exp) ./ (-Rgas())
 
     p = scatter(
-        res_ent, AAD,
+        res_ent, AAD_plot,
         xlabel = L"s^+",
         ylabel = L"AD (\%)",
         title = "AD% vs Residual Entropy for $(labels[i])",

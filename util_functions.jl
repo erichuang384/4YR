@@ -1,5 +1,6 @@
 
-#csv_phase("Training Data/Heptane DETHERM.csv",SAFTgammaMie(["Heptane"]),false)
+#sv_phase("Training DATA/Branched Alkane/2-methylpentane.csv",SAFTgammaMie(["2-methylpentane"]),false)
+
 
 function csv_phase(csv_path::String, model, remove_vapour::Bool=false)
     # Read CSV

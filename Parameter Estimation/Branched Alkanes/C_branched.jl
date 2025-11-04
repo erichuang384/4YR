@@ -1,7 +1,6 @@
 using CMAEvolutionStrategy, Statistics, Random, DataFrames, Plots, LaTeXStrings, CSV, StaticArrays, Clapeyron
-#
-function IB_viscosity_CH(model::EoSModel, P, T, z = StaticArrays.SA[1.0];
-        ξ_i = Dict("CH3" => 0.507593380610382, "CH2" => 0.0462438047643044, "CH" => -0.4))
+function IB_viscosity_C(model::EoSModel, P, T, z = StaticArrays.SA[1.0];
+        ξ_i = Dict("CH3" => 0.507593380610382, "CH2" => 0.0462438047643044, "CH" => -0.42564193918, "C" => 0.5))
 
     """
     Overall Viscosity using method proposed by Ian Bell, 3 parameters
@@ -83,8 +82,7 @@ end
 # ==== Optimization Algorithm
 Base.exit_on_sigint(false)
 
-
-# === Objective Function  ===
+# === Objective Function  ===function make_global_objective(models::Vector, datasets::Vector{DataFrame})
 function make_global_objective(models::Vector, datasets::Vector{DataFrame})
     """
     Returns an objective function f(x) where:
@@ -92,7 +90,7 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
     """
     function objective(x)
         # construct ξ_i using the optimization variables
-        ξ_i = Dict("CH3" => 0.507593380610382, "CH2" => 0.0462438047643044, "CH" => x[1])
+        ξ_i = Dict("CH3" => 0.507593380610382, "CH2" => 0.0462438047643044, "CH" => x[1], "C" => x[2])
 
         total_error = 0.0
 
@@ -102,7 +100,7 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
             μ_exp = data.viscosity
 
             try
-                μ_pred = IB_viscosity_CH.(model, Pvals[:], Tvals[:]; ξ_i = ξ_i)
+                μ_pred = IB_viscosity_C.(model, Pvals[:], Tvals[:]; ξ_i = ξ_i)
 
                 # If IB_viscosity_CH returned NaNs because of missing group keys etc.
                 if any(x -> !isfinite(x), μ_pred) || any(x -> !isfinite(x), μ_exp)
@@ -125,8 +123,8 @@ end
 
 # === CMA-ES Optimization ===
 function estimate_xi_CH3_CH2_CMA!(models::Vector, datasets::Vector{DataFrame};
-    lower = [-5.0],
-    upper = [5.0],
+    lower = [-5.0, -5.0],
+    upper = [ 5.0, 5.0],
     seed = 42, σ0 = 0.1, max_iters = 5000)
 
     Random.seed!(seed)
@@ -170,26 +168,26 @@ end
 
 # === Example Usage ===
 models = [
-    #SAFTgammaMie(["2,2,4-trimethylpentane"]),
+    SAFTgammaMie(["2,2,4-trimethylpentane"]),
     SAFTgammaMie(["2,6,10,14-tetramethylpentadecane"]),
     SAFTgammaMie(["2-methylpropane"]),
     SAFTgammaMie(["2-methylbutane"]),
     SAFTgammaMie(["2-methylpentane"]),
     #SAFTgammaMie(["2-methylnonane"]), NOT TP
     #SAFTgammaMie(["4-methylnonane"]), NOT TP
-    #SAFTgammaMie(["heptamethylnonane"]),
+    SAFTgammaMie(["heptamethylnonane"]),
     #SAFTgammaMie(["squalane"])
 ]
 
 data_paths = [
-    #"Training DATA/Branched Alkane/2,2,4-trimethylpentane.csv",
+    "Training DATA/Branched Alkane/2,2,4-trimethylpentane.csv",
     "Training DATA/Branched Alkane/2,6,10,14-tetramethylpentadecane.csv",
     "Training DATA/Branched Alkane/2-methylpropane.csv",
     "Training DATA/Branched Alkane/2-methylbutane.csv",
     "Training DATA/Branched Alkane/2-methylpentane.csv",
     #"Training DATA/Branched Alkane/2-methylnonane.csv",
     #"Training DATA/Branched Alkane/4-methylnonane.csv",
-    #"Training DATA/Branched Alkane/heptamethylnonane.csv",
+    "Training DATA/Branched Alkane/heptamethylnonane.csv",
     #"Training DATA/Branched Alkane/squalane.csv"
 ]
 
@@ -200,8 +198,8 @@ datasets = [load_experimental_data(p) for p in data_paths]
 res = estimate_xi_CH3_CH2_CMA!(
     models,
     datasets;
-    lower =  [-1.0],
-    upper =  [0.0],
+    lower =  [-10.0, -10.0],
+    upper =  [5.0,  5.0],
     seed = 42,
     σ0 = 0.1,
     max_iters = 10000
