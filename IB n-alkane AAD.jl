@@ -9,15 +9,15 @@ models = [
     SAFTgammaMie(["Hexane"]),
     SAFTgammaMie(["Heptane"]),
     SAFTgammaMie(["Octane"]),
-    SAFTgammaMie([("Nonane",["CH3"=>2,"CH2"=>7])]),
+    SAFTgammaMie(["Nonane"]),
     SAFTgammaMie(["Decane"]),
-    SAFTgammaMie([("Undecane",["CH3"=>2,"CH2"=>9])]),
-    SAFTgammaMie([("Dodecane",["CH3"=>2,"CH2"=>10])]),
-    SAFTgammaMie([("Tridecane",["CH3"=>2,"CH2"=>11])]),
-    SAFTgammaMie([("Tetradecane",["CH3"=>2,"CH2"=>12])]),
-    SAFTgammaMie([("Pentadecane",["CH3"=>2,"CH2"=>13])]),
-    SAFTgammaMie([("Hexadecane",["CH3"=>2,"CH2"=>14])]),
-    SAFTgammaMie([("Heptadecane",["CH3"=>2,"CH2"=>15])])
+    SAFTgammaMie(["Undecane"]),
+    SAFTgammaMie(["Dodecane"]),
+    SAFTgammaMie(["Tridecane"]),
+    SAFTgammaMie(["Tetradecane"]),
+    SAFTgammaMie(["Pentadecane"]),
+    SAFTgammaMie(["Hexadecane"]),
+    SAFTgammaMie(["Heptadecane"])
 ]
 
 #model_pentadecane = SAFTgammaMie(["pentadecane"])
@@ -53,7 +53,7 @@ for i in 1:length(models)
     T_exp = exp_data[i][:,2]
     n_exp = exp_data[i][:,3]
     P_exp = exp_data[i][:,1] 
-    n_calc = IB_viscosity_test.(models[i],P_exp,T_exp) 
+    n_calc = bell_lot_viscosity.(models[i],P_exp,T_exp) 
 
     AAD[i] = sum(abs.( (n_exp .- n_calc)./n_exp))/length(P_exp)
 end
@@ -70,7 +70,7 @@ for i in 1:length(models)
     T_exp = data[:,2]
     n_exp = data[:,3]
 
-    n_calc = IB_viscosity_test.(model, P_exp, T_exp)
+    n_calc = bell_lot_viscosity.(model, P_exp, T_exp)
     AAD_plot = ((n_exp .- n_calc) ./ n_exp) .* 100
 
     res_ent = entropy_res.(model, P_exp, T_exp) ./ (-Rgas())

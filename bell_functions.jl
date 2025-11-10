@@ -1,3 +1,4 @@
+using Clapeyron
 include("util_functions.jl")
 
 function IB_viscosity_pure(model::EoSModel, P, T, ξ, z = StaticArrays.SA[1.0])
@@ -37,19 +38,25 @@ function IB_viscosity_test(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters
 	"""
-	n_g = [2.544060456,	-1.926681797,	0.592109738] # global parameters
+	n_g = [ 3.7381831539582673, -3.206334125169945, 1.0682318039518783] # global parameters
 	ξ_pure = zeros(length(z))
-	gamma = 1.3016771263302
+	tau_pure = zeros(length(z))
+	
 	#A =  7.809602262149181
 	#B = -0.34096357773369207
 
 	for j ∈ 1:length(z)
 
-		ξ_i = ["CH3" 0.507593380610382;
-			"CH2"  0.0462438047643044;
+		ξ_i = ["CH3" 0.606768956945666;
+			"CH2"  0.06471191312369874;
 			"aCH"  0.88788;
 			"cCH2" 0.762199846/6]
+
+		tau_i = ["CH3" 1.221785461729149;
+		 "CH2" 1.3287119816677706]
+
         ξ = 0
+		tau = 0
 
 		# GCM determination of ξ, doesn't yet include second order contributions
 		groups = model.groups.groups[j] #n-elemnet Vector{string}
@@ -57,19 +64,24 @@ function IB_viscosity_test(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 		for i in 1:length(groups)
 
 			xi = ξ_i[ξ_i[:, 1].==groups[i], 2][1]
+			tau_dum = tau_i[tau_i[:, 1].==groups[i], 2][1]
 
-			ξ +=  + xi* num_groups[i] #* (1 - xi_T * log(T)) 
+			ξ +=  xi* num_groups[i] #* (1 - xi_T * log(T)) 
+			tau +=  tau_dum* num_groups[i]
 
+			
 			ξ_pure[j] = ξ
+			tau_pure[j] = tau / sum(num_groups)
 		end
 
 	end
 	#T_c = crit_pure(model)
 	ξ_mix = sum(z .* ξ_pure)
+	tau_mix = sum(z .* tau_pure)
 	R = Rgas()
 	s_res = entropy_res(model, P, T, z)
 	#s_red = -s_res ./ R
-	s_red = ((-s_res ./ R) ^ gamma) ./ log(T)
+	s_red = ((-s_res ./ R) ^ tau_mix) ./ log(T)
 
 	ln_n_reduced = ( n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.8))
 	n_reduced = exp(ln_n_reduced) - 1
@@ -192,57 +204,4 @@ function IB_CE(model::EoSModel, T)
 	Ω = Ω⃰(model, T)
 	visc = 5 / 16 * sqrt(Mw * k_B * T / (N_A * pi)) / (σ^2 * Ω)
 	return visc
-end
-
-function IB_viscosity_4param(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
-	"""
-	Overall Viscosity using method proposed by Ian Bell
-	"""
-	#n_g = [-0.448046, 1.012681, -0.381869, 0.054674] # global parameters
-	n_g = [-1.549084609734826, 3.7623155804952257, -1.8482148287077855, 0.32133530877360084]
-	ξ_pure = zeros(length(z))
-
-	for j ∈ 1:length(z)
-
-		ξ_i = ["CH3" 0.9895943276947237;
-			"CH2"  0.0851308718445697;
-			"aCH"  0.174573333]
-		ξ = 0
-		# GCM determination of ξ, doesn't yet include second order contributions
-		groups = model.groups.groups[j] #n-elemnet Vector{string}
-		num_groups = model.groups.n_groups[j] #n-element Vector{Int}
-		for i in 1:length(groups)
-			value = ξ_i[ξ_i[:, 1].==groups[i], 2][1]
-			ξ = ξ + value * num_groups[i]
-
-			ξ_pure[j] = ξ
-		end
-
-	end
-
-	ξ_mix = sum(z .* ξ_pure)
-	R = Rgas()
-	s_res = entropy_res(model, P, T, z)
-	s_red = -s_res ./ R
-
-	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) + n_g[2] .* (s_red ./ ξ_mix) .^ (1.5) + n_g[3] .* (s_red ./ ξ_mix) .^ (2) + n_g[4] .* (s_red ./ ξ_mix) .^ (2.5)) - 1
-
-	N_A = Clapeyron.N_A
-	k_B = Clapeyron.k_B
-
-	ρ_molar = molar_density(model, P, T, z)
-	ρ_N = ρ_molar .* N_A
-
-	Mw = Clapeyron.molecular_weight(model, z)
-	m = Mw / N_A
-
-	n_res = (n_reduced .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) ./ ((s_red) .^ (2 / 3))
-
-	if length(z) == 1
-		viscosity = IB_CE(model, T) + n_res
-	else
-		viscosity = IB_CE_mix(model, T, z) + n_res
-	end
-
-	return viscosity
 end

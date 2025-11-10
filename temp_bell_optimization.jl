@@ -109,18 +109,21 @@ end
 
 function IB_viscosity_TP(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; 
 	ξ_i = Dict("CH3" => 0.4, "CH2" => 0.3),
-	ξ_T = Dict("CH3" => 0.4, "CH2" => 0.3),
-    n_g_1 = 0.2, n_g_2 = -0.4, n_g_3 = 0.02, gamma = 2.5, exp_1 = 1.8, exp_2 = 2.4, exp_3 = 2.8)
+	#ξ_T = Dict("CH3" => 0.4, "CH2" => 0.3),
+    n_g_1 = 0.2, n_g_2 = -0.4, n_g_3 = 0.02,
+	tau_i = Dict("CH3" => 0.0, "CH2" => 0.0),
+	exp_1 = 1.8, exp_2 = 2.4, exp_3 = 2.8)
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters
 	"""
 	n_g = [n_g_1, n_g_2, n_g_3] # global parameters
-	#n_g = [4.574185897,	-4.101146144,	1.458455701]
 	exp_i = [exp_1, exp_2,exp_3]
 	
 	#ξ_pure = zeros(length(z))
 
 	ξ = 0.0
+	tau = 0.0
+
 	groups = model.groups.groups[1]
 	num_groups = model.groups.n_groups[1]
     #T_c = crit_pure(model)
@@ -130,13 +133,15 @@ function IB_viscosity_TP(model::EoSModel, P, T, z = StaticArrays.SA[1.0];
 			error("ξ_i missing entry for group \"$g\".")
 		end
 		#C_T += C_i[g] * num_groups[i]
-		ξ += ξ_i[g] * num_groups[i] * (1 - ξ_T[g] * log(T))
+		ξ += ξ_i[g] * num_groups[i]
+		tau += tau_i[g] * num_groups[i]
 	end
-
+	tau = tau /sum(num_groups)
 	ξ_mix = sum(z .* ξ)
 	R = Rgas()
 	s_res = entropy_res(model, P, T, z)
-	s_red = ((-s_res ./ R) ^ gamma) ./ log(T)
+	
+	s_red = ((-s_res ./ R) ^ tau ) ./ log(T)
 
 	#ln_n_reduced = (n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.8))
 	#running in vscode

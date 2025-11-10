@@ -1,36 +1,25 @@
-using CMAEvolutionStrategy
-using Statistics, Random
-using DataFrames
-using Plots
-using LaTeXStrings, CSV, StaticArrays, Clapeyron
-
-#include("bell_functions.jl")
-#include("temp_bell_optimization.jl")
-#include("Parameter Estimation/optimization_functions.jl")
-# Allow Ctrl+C to interrupt instead of killing Julia
-Base.exit_on_sigint(false)
-
-
-# === Objective Function (same as before) ===
-function make_global_objective(models::Vector, datasets::Vector{DataFrame})
-    """
-    Returns an objective function f(x) where:
-    x = [xi_CH3, xi_CH2, xiT_CH3, xiT_CH2, n_g_3]
-    """
+using CMAEvolutionStrategy, Statistics, Random, DataFrames, CSV, Clapeyron, StaticArrays, StatsBase
+include("model development.jl")
+function make_bell_objective(models::Vector, datasets::Vector{DataFrame})
     function objective(x)
-        ξ_i = Dict("CH3" => x[1], "CH2" => x[2])
-       # ξ_T = Dict("CH3" => x[3], "CH2" => x[4])
+        # unpack optimization vector
+        n_alpha = Dict(
+            "CH3" => (x[1],	x[2],	x[3]),
+            "CH2" => (x[4],	x[5],	x[6]),
 
-        n_g_1 = x[3]
-        n_g_2 = x[4]
-        n_g_3 = x[5]
+        )
 
-        tau_i = Dict("CH3" => x[6], "CH2" => x[7])
-        exp_1 = 1.8
-        exp_2 = 2.4
-        exp_3 = 2.8
-        #n_g_4 = x[6]
-        #n_exp = x[6]
+        tau_i = Dict(
+            "CH3" => (x[7]),
+            "CH2" => (x[8])
+        )
+
+        params = Dict(
+            "n_alpha" => n_alpha,
+            "tau_i" => tau_i,
+            "gamma"   => 0.45,
+            "D_i" => x[9]
+        )
 
         total_error = 0.0
 
@@ -40,18 +29,14 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
             μ_exp = data.viscosity
 
             try
-                μ_pred = IB_viscosity_TP.(model, Pvals[:], Tvals[:]; ξ_i = ξ_i, n_g_1 = n_g_1, n_g_2 = n_g_2, n_g_3 = n_g_3, tau_i = tau_i,
-                exp_1 = exp_1, exp_2 = exp_2, exp_3 = exp_3)
-
+                μ_pred = bell_lot_viscosity_opt_epsilon.(model, Pvals[:], Tvals[:]; params=params)
                 if any(!isfinite, μ_pred)
                     total_error += 1e10
                     continue
                 end
-
                 total_error += sum(((μ_exp .- μ_pred) ./ μ_exp).^2) / length(Pvals)
-
             catch err
-                @warn "Invalid point encountered during optimization" x = x error = err
+                @warn "Error during evaluation" error=err
                 total_error += 1e10
             end
         end
@@ -61,21 +46,21 @@ function make_global_objective(models::Vector, datasets::Vector{DataFrame})
     return objective
 end
 
-
-# === CMA-ES Optimization ===
-function estimate_xi_CH3_CH2_CMA!(models::Vector, datasets::Vector{DataFrame};
-    lower = [0.0, 0.0,0.0,0.0,0.0,0.0,0.0],
-    upper = [1.5, 1.5,1.5,1.5,1.5,1.5,1.5],
-    seed = 42, σ0 = 0.1, max_iters = 5000)
-
+function optimize_bell_parameters!(models, datasets;
+    lower = fill(0.0, 9),
+    upper = fill(1.0, 9),
+    seed = 42, σ0 = 0.5, max_iters = 8000
+)
     Random.seed!(seed)
-    obj = make_global_objective(models, datasets)
+    obj = make_bell_objective(models, datasets)
 
-    # Initial guess: midpoint of bounds
-    x0 = [0.507593381,	0.046243805, 2.544060456,	-1.926681797,	0.592109738, 1.0, 1.0]
+    # initial guess
+    #x0 = [-0.0068188, -0.02899088, -1.6803e-9, -0.000505772, -0.019999, -9.996391e-10, 0.05499806, -0.014602705977361975]
 
-    println("Starting CMA-ES optimization (xi_CH3, xi_CH2, ...) — seed=$seed")
-    println("Initial guess: ", x0)
+    x0 =   [-0.016248943,	-1.301165292,	-13.21531378, 2.93E-04,	-1.011917658,	-2.991386128, 0.0001, 0.00002, -7.17608578256157]
+
+    println("Starting CMA-ES optimization with seed = $seed")
+    println("Initial parameters: ", x0)
 
     iter_counter = Ref(0)
 
@@ -97,15 +82,13 @@ function estimate_xi_CH3_CH2_CMA!(models::Vector, datasets::Vector{DataFrame};
         end
     )
 
-
-    println("\nCMA-ES optimization complete.")
+    println("\nOptimization complete.")
     println("Best parameters found:")
     println(xbest(result))
     println("Objective value = ", fbest(result))
 
     return result
 end
-
 
 # === Example Usage ===
 models = [
@@ -134,15 +117,16 @@ data_paths = [
 datasets = [load_experimental_data(p) for p in data_paths]
 
 # Run optimization
-res = estimate_xi_CH3_CH2_CMA!(
+
+# [-0.009906338133508082, -0.6770805839304224, -2.1715739702027115, 0.0010175814867223187, -0.9682046689892875, 0.32629202910983224, 0.5000000023041724, 0.5000000023292258, 0.5441397922288526, -0.2999999988321849]
+res = optimize_bell_parameters!(
     models,
     datasets;
-    lower =  [0.1,	-0.5, 0.0,	-5.0,	0.0, -10.0, -10.0],
-    upper =  [2.0,	1.0, 5.0,	0.0,	5.0, 10.0, 10.0],
+    lower  = [-10.0, -15.0, -20.0, -0.1, -5.0, -5.0, 0.0, 0.0, -20.0],
+    upper  = [0.0, 0.0, 0.0, 1.0, 0.0,       1.0,    0.001, 0.001, 0.0],
     seed = 42,
     σ0 = 0.5,
     max_iters = 10000
 )
 
 println("\nBest solution (CMA-ES): ", xbest(res))
-println("Best objective value: ", fbest(res))

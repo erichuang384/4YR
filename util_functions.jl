@@ -1,7 +1,51 @@
+using LinearAlgebra, StaticArrays
+#csv_phase("Training DATA/Branched Alkane/2,2,4-trimethylpentane.csv",SAFTgammaMie(["2,2,4-trimethylpentane"]),true)
 
-#sv_phase("Training DATA/Branched Alkane/2-methylpentane.csv",SAFTgammaMie(["2-methylpentane"]),false)
+#model = SAFTgammaMie(["Hexane"], idealmodel = WalkerIdeal)
+
+function gamma(model,p,T; z = StaticArrays.SA[1.0])
+    betaT = Clapeyron.VT.isothermal_compressibility(model, p, T, z) # 1/Pa
+    betaS = Clapeyron.VT.isentropic_compressibility(model, p, T, z) # 1/Pa
+    alphaV = isobaric_expansivity(model, p, T, z) # 1/K
+    Cv = isochoric_heat_capacity(model,p,T,z) # J/k mol
+    Cp = isobaric_heat_capacity(model,p,T,z) # J/k mol
+    u = speed_of_sound(model, p, T, z)      # m/s
+    rho = molar_density(model, p, T, z)     # mol/ m^3
+    #return alphaV * betaT / (Cv * rho)
+    #return alphaV * betaS / (Cp * rho)
+    return alphaV * u^2/ Cp
+end
+#gamma(model,1e5,300)
+#=
+function ∂f∂V(model,V,T,z::AbstractVector)
+    f(∂V) = a_res(model,∂V,T,z)
+    ∂aᵣ∂V = Solvers.derivative(f,V)
+    sum(z)*Rgas(model)*T*(∂aᵣ∂V - 1/V)
+end
+using ForwardDiff
+
+function ∂T∂V(model,V,T,z::AbstractVector)
+    ∂T∂V = ForwardDiff.derivative(T,V)
+    return ∂T∂V
+end
+model = SAFTgammaMie(["Hexadecane"])
+
+v = volume(model,1e8,300)
+∂T∂V(model, v, 300.0)
 
 
+function γVT(model,V,T,z::AbstractVector=SA[1.0])
+    # partial derivative (∂P/∂T)_V
+    f_T(∂T) = pressure(model,V,∂T,z)
+    ∂P∂T = Solvers.derivative(f_T,T)
+
+    # heat capacity Cv(T,V)
+    Cv = isobar(model,V,T,z)
+
+    # compute gamma
+    return (V / Cv) * ∂P∂T
+end
+=#
 function csv_phase(csv_path::String, model, remove_vapour::Bool=false)
     # Read CSV
     df = CSV.read(csv_path, DataFrame)
@@ -122,6 +166,29 @@ function Ω⃰(model::EoSModel, T)
     ln_Omega = -2/λ_r * log(T⃰) + log(1 - 2/(3*λ_r)) + sum(a_vals[i] * (1/T⃰)^((i-1)/2) for i in 1:6)
 
     return exp(ln_Omega)
+end
+
+function tau_OFE(model::EoSModel, tau_i)
+    """
+    epsilon pure fluid equivalent
+    """
+    xₛₖ = x_sk(model)
+    x_sk_order = model.groups.flattenedgroups
+    x_sk_dict = Dict(x_sk_order[i] => xₛₖ[i] for i in eachindex(x_sk_order))
+    #x_sk_vec   = [x_sk_dict[g] for g in x_sk_order] # ensure in same order
+    tau_vec = [tau_i[g] for g in x_sk_order] # has to be matrix
+
+    n = length(x_sk_order)
+    tau_mat = zeros(n,n)
+    for i in 1:n, j in 1:n
+        tau_mat[i, j] = (i == j) ? tau_vec[i] : sqrt(tau_vec[i] * tau_vec[j]) # using mean value
+    end
+
+    x_vec = model.groups.n_groups[1]./sum(model.groups.n_groups[1])
+    #vdW mixing rule
+    #tau_ofe = (x_sk_vec' * (tau_mat.^1) * x_sk_vec)
+    tau_ofe = sum(tau_vec .* x_vec)
+    return tau_ofe
 end
 
 function load_experimental_data(path::AbstractString)
