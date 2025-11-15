@@ -112,15 +112,15 @@ function IB_viscosity(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters
 	"""
-	n_g = [0.30136975, -0.11931025, 0.02531175] # global parameters
+	n_g = [4.323230383474286, -3.437528761548658, 1.1472790293690405] # global parameters
 	#n_g = [0.7918253, -0.4792172, 0.06225174]
-	n_exp = [ 1.76, 2.134, 2.608]
+	n_exp = [ 1.8, 2.4, 2.8]
 	ξ_pure = zeros(length(z))
 
 	for j ∈ 1:length(z)
 
-		ξ_i = ["CH3" 0.4085265;
-			"CH2"  0.0383325;
+		ξ_i = ["CH3" 2.0332499729921767;
+			"CH2"  0.18552378988566523;
 			"aCH"  0.142683;
 			"cCH2" 0.7614/5]
 		ξ = 0
@@ -142,7 +142,7 @@ function IB_viscosity(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	s_red = -s_res ./ R
 
 	#n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ (1.8) + n_g[2] .* (s_red ./ ξ_mix) .^ (2.4) + n_g[3] .* (s_red ./ ξ_mix) .^ (2.8)) - 1
-	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ n_exp[1] + n_g[2] .* (s_red ./ ξ_mix) .^ n_exp[2] + n_g[3] .* (s_red ./ ξ_mix) .^ n_exp[3] .- 0.6) - 1
+	n_reduced = exp(n_g[1] .* (s_red ./ ξ_mix) .^ n_exp[1] + n_g[2] .* (s_red ./ ξ_mix) .^ n_exp[2] + n_g[3] .* (s_red ./ ξ_mix) .^ n_exp[3]) - 1
 
 	N_A = Clapeyron.N_A
 	k_B = Clapeyron.k_B

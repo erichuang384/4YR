@@ -121,3 +121,207 @@ function Lotgering_dilute_gas_viscosity(model::EoSModel,T)
     return visc
 end
 
+
+
+function bell_lot_viscosity_mix(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
+	"""
+	Overall Viscosity using method proposed by Ian Bell, 3 parameters
+	"""
+	n_alpha = ["CH3" -0.016248943	1.301165292	-13.21531378;
+		       "CH2" 2.93E-04	1.011917658	-2.991386128;
+               "CH" 0.042101628	1.407726021	11.03083133]
+    # molar frac
+    tau_i = ["CH3" 0.93985987;
+		    "CH2" 0.605183564;
+            "CH" 0.612296858127202]
+    γ= 0.437793675
+    D_i = 7.176085783
+    n_g_matrix_mix = zeros(length(z),3)
+    m_gc_mix = zeros(length(z))
+    tau_mixture = zeros(length(z))
+    D_matrix = zeros(length(z))
+    components = model.groups.components
+# ==================
+    for j in 1:length(z)
+        comp_model = SAFTgammaMie([components[j]])
+	    groups = comp_model.groups.groups[1]   
+	    num_groups = comp_model.groups.n_groups[1]  # corresponding 
+        S = comp_model.params.shapefactor
+        σ = diag(comp_model.params.sigma.values) .* 1e10
+
+	    n_g_matrix = zeros(length(groups), 3)  # rows: groups, cols: 3 coefficients
+        tau = zeros(length(groups))
+
+        V = sum(num_groups.*S.*(σ.^3))
+
+        for i in 1:length(groups)
+        # find group index in n_i
+            row = findfirst(x -> x == groups[i], n_alpha[:,1])
+            A_alpha = n_alpha[row, 2]
+            B_alpha = n_alpha[row, 3]
+            C_alpha = n_alpha[row, 4]
+
+            n_g_matrix[i,1] = A_alpha * S[i] * σ[i] ^ 3 * num_groups[i]
+            n_g_matrix[i,2] = B_alpha * S[i] * σ[i] ^ 3 * num_groups[i] / (V^γ)
+            n_g_matrix[i,3] = C_alpha * num_groups[i]
+
+            row_tau = findfirst(x -> x == groups[i], tau_i[:,1])
+            tau[i] = tau_i[row_tau, 2] * num_groups[i]
+        end
+
+        # Now sum across groups for each coefficient (column)
+        n_g = sum(n_g_matrix, dims = 1)  # sums over rows for each column, result is 1x3 matrix
+
+        m_gc = sum(comp_model.groups.n_groups[1]) # total number of groups
+
+        tau_mix = sum(tau) ./ m_gc # makes it mole fraction 
+        
+        n_g_matrix_mix[j,:] = n_g
+        m_gc_mix[j] = m_gc
+        tau_mixture[j] = tau_mix
+        
+        D = D_i * m_gc
+        D_matrix[j] = D
+    end
+    # ===================================
+    m_mean = sum(m_gc_mix .* z)
+    tau_overall = sum(tau_mixture .* z .* m_gc_mix ./ m_mean)
+
+    n_g_1_overall = 0
+    n_g_2_overall = 0
+    n_g_3_overall = 0
+    n_g_4_overall = 0
+
+    R = Rgas()
+
+    for i in 1:length(z)
+        n_g_1_overall += sum(n_g_matrix_mix[i,1] .* z[i])
+        n_g_2_overall += sum(n_g_matrix_mix[i,2] .* z[i] .* m_gc_mix[i] ./ m_mean)
+        n_g_3_overall += sum(n_g_matrix_mix[i,3] .* z[i] .* m_gc_mix[i] ./ m_mean)
+        n_g_4_overall += sum(D_matrix[i] .* z[i] .* m_gc_mix[i] ./ m_mean)
+    end
+    s_res = entropy_res(model, P, T, z)
+    s_red = (-s_res/R)
+    Z = (-s_res) / (R * m_mean * log(T)^ tau_overall)
+    ln_n_reduced = n_g_1_overall + n_g_2_overall * Z + n_g_3_overall * Z ^ 2 + n_g_4_overall * Z ^ 3
+
+    n_reduced = exp(ln_n_reduced) - 1.0
+
+	N_A = Clapeyron.N_A
+	k_B = Clapeyron.k_B
+
+	ρ_molar = molar_density(model, P, T, z)
+	ρ_N = ρ_molar .* N_A
+
+    Mw = Clapeyron.molecular_weight(model, z)
+
+	m = Mw / N_A
+
+	n_res = (n_reduced .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) ./ ((s_red) .^ (2 / 3))
+
+	if length(z) == 1
+		viscosity = IB_CE(model, T) + n_res
+	else
+		viscosity = IB_CE_mix(model, T, z) + n_res
+	end
+
+	return viscosity
+end
+
+
+function lot_test(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
+	"""
+	Overall Viscosity using method proposed by Ian Bell, 3 parameters
+	"""
+	n_alpha = ["CH3" -0.0116953315864751 0.4223154028105611 -1.1486176828290624;
+		       "CH2" -0.0016439802421435658 0.3174580677512573 -0.22561637761145772]
+
+    γ= 0.45148295117527165
+    D_i = 0.184353816497909
+    n_g_matrix_mix = zeros(length(z),3)
+    m_gc_mix = zeros(length(z))
+
+    D_matrix = zeros(length(z))
+    components = model.groups.components
+# ==================
+    for j in 1:length(z)
+        comp_model = SAFTgammaMie([components[j]])
+	    groups = comp_model.groups.groups[1]   
+	    num_groups = comp_model.groups.n_groups[1]  # corresponding 
+        S = comp_model.params.shapefactor
+        σ = diag(comp_model.params.sigma.values) .* 1e10
+
+	    n_g_matrix = zeros(length(groups), 3)  # rows: groups, cols: 3 coefficients
+
+        V = sum(num_groups.*S.*(σ.^3))
+
+        for i in 1:length(groups)
+        # find group index in n_i
+            row = findfirst(x -> x == groups[i], n_alpha[:,1])
+            A_alpha = n_alpha[row, 2]
+            B_alpha = n_alpha[row, 3]
+            C_alpha = n_alpha[row, 4]
+
+            n_g_matrix[i,1] = A_alpha * S[i] * σ[i] ^ 3 * num_groups[i]
+            n_g_matrix[i,2] = B_alpha * S[i] * σ[i] ^ 3 * num_groups[i] / (V^γ)
+            n_g_matrix[i,3] = C_alpha * num_groups[i]
+
+        end
+
+        # Now sum across groups for each coefficient (column)
+        n_g = sum(n_g_matrix, dims = 1)  # sums over rows for each column, result is 1x3 matrix
+
+        m_gc = sum(comp_model.groups.n_groups[1]) # total number of groups
+
+        
+        n_g_matrix_mix[j,:] = n_g
+        m_gc_mix[j] = m_gc
+        
+        D = D_i * m_gc
+        D_matrix[j] = D
+    end
+    # ===================================
+    m_mean = sum(m_gc_mix .* z)
+
+    n_g_1_overall = 0
+    n_g_2_overall = 0
+    n_g_3_overall = 0
+    n_g_4_overall = 0
+
+    R = Rgas()
+
+    for i in 1:length(z)
+        n_g_1_overall += sum(n_g_matrix_mix[i,1] .* z[i])
+        n_g_2_overall += sum(n_g_matrix_mix[i,2] .* z[i] .* m_gc_mix[i] ./ m_mean)
+        n_g_3_overall += sum(n_g_matrix_mix[i,3] .* z[i] .* m_gc_mix[i] ./ m_mean)
+        n_g_4_overall += sum(D_matrix[i] .* z[i] .* m_gc_mix[i] ./ m_mean)
+    end
+    s_res = entropy_res(model, P, T, z)
+    s_red = (-s_res/R)
+    Z = (-s_res) / (R * m_mean)
+    ln_n_reduced = n_g_1_overall + n_g_2_overall * Z + n_g_3_overall * Z ^ 2 + n_g_4_overall * Z ^ 3
+
+    n_reduced = exp(ln_n_reduced)
+
+	N_A = Clapeyron.N_A
+	k_B = Clapeyron.k_B
+
+	ρ_molar = molar_density(model, P, T, z)
+	ρ_N = ρ_molar .* N_A
+
+    Mw = Clapeyron.molecular_weight(model, z)
+
+	m = Mw / N_A
+
+	#n_res = (n_reduced .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) ./ ((s_red) .^ (2 / 3))
+    n_res = n_reduced .* IB_CE_mix(model, T, z) 
+    viscosity = n_res
+
+#	if length(z) == 1
+#		viscosity = IB_CE(model, T) + n_res
+#	else
+#		viscosity = IB_CE_mix(model, T, z) + n_res
+#	end
+
+	return viscosity
+end

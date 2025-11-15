@@ -5,12 +5,14 @@ function bell_lot_viscosity(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	"""
 	n_alpha = ["CH3" -0.016248943	1.301165292	-13.21531378;
 		       "CH2" 2.93E-04	1.011917658	-2.991386128;
-               "CH" 0.03930050901260097 -1.5984961240693298 10.093752915195292;
-               "C"  0.19911712	0.220305695	1.292925164]
+               #"CH" 0.03930050901260097 -1.5984961240693298 10.093752915195292;
+               "CH" 0.042101628	1.407726021	11.03083133
+]
     # molar frac
     tau_i = ["CH3" 0.93985987;
 		    "CH2" 0.605183564;
-            "CH" 0.5604734970596769]
+            #"CH" 0.5604734970596769;
+            "CH" 0.612296858127202]
     #vdw, arithmetic mean
     #tau_i = ["CH3" 0.823964850820917;
 #		    "CH2" 0.581851010454827;
@@ -21,7 +23,7 @@ function bell_lot_viscosity(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	n_g_matrix = zeros(length(groups), 3)  # rows: groups, cols: 3 coefficients
     tau = zeros(length(groups))
 
-    S=model.params.shapefactor
+    S=model.params.shapefactor.values
     σ = diag(model.params.sigma.values) .* 1e10
 
     γ= 0.437793675
@@ -86,174 +88,25 @@ function bell_lot_viscosity(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	return viscosity
 end
 
-function bell_lot_viscosity_opt(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params::Dict)
-    # === Extract optimization parameters ===
-    n_alpha = params["n_alpha"]       # Dict("CH3" => (A, B, C), "CH2" => (...))
-    γ       = params["gamma"]::Float64
-    tau_i = params["tau_i"]
-    D_i = params["D_i"]
-
-    # === Model & group data ===
-    groups      = model.groups.groups[1]
-    num_groups  = model.groups.n_groups[1]
-    S           = model.params.shapefactor
-    σ           = diag(model.params.sigma.values) .* 1e10  # m → Å
-
-    # === Volume contribution ===
-    V = sum(num_groups .* S .* (σ .^ 3))
-
-    # === Compute group contributions ===
-    n_g_matrix = zeros(length(groups), 3)
-#    tau = zeros(length(groups))
-
-    for (i, grp) in enumerate(groups)
-        @assert haskey(n_alpha, grp) "Missing n_alpha entry for group '$grp'"
-        Aα, Bα, Cα = n_alpha[grp]
-#        tau_dum = tau_i[grp]
-
-        n_g_matrix[i, 1] = Aα * S[i] * σ[i]^3 * num_groups[i]
-        n_g_matrix[i, 2] = Bα * S[i] * σ[i]^3 * num_groups[i] / (V^γ)
-        n_g_matrix[i, 3] = Cα * num_groups[i]
-#        tau[i] = tau_dum * num_groups[i]
-    end
-
-    n_g = vec(sum(n_g_matrix, dims = 1))
-    m_gc = sum(num_groups)
-
-    tau_mix = tau_OFE(model,tau_i) # makes it mole fraction based
-
-    # === Thermodynamic terms ===
-    R     = Rgas()
-    s_res = entropy_res(model, P, T, z)
-    #z_term = (s_res) / (R * m_gc * log(T)^ tau_mix)
-    z_term = (s_res) / (R * log(T)^ tau_mix)
-    s_red = -s_res / R
-
-    Mw = Clapeyron.molecular_weight(model, z)
-
-    # === Reduced viscosity correlation ===
-    #D = (D_1+D_2/Mw)^(-1) #* m_gc
-    D = D_i * m_gc
-    ln_n_reduced = n_g[1] + n_g[2]*z_term + n_g[3]*z_term^2 + D*z_term^3
-    n_reduced = exp(ln_n_reduced) - 1.0
-
-    # === Physical constants ===
-    N_A = Clapeyron.N_A
-    k_B = Clapeyron.k_B
-
-    ρ_molar = molar_density(model, P, T, z)
-    ρ_N = ρ_molar * N_A
-    
-    m = Mw / N_A
-
-    # === Residual contribution ===
-    n_res = n_reduced * (ρ_N^(2/3)) * sqrt(m * k_B * T) / (s_red^(2/3))
-
-    # === Chapman–Enskog or mixture viscosity ===
-    viscosity = if length(z) == 1
-        IB_CE(model, T) + n_res
-    else
-        IB_CE_mix(model, T, z) + n_res
-    end
-
-    return viscosity
-end
-
-
-
-function bell_lot_viscosity_opt_noD(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params::Dict)
-    # === Extract optimization parameters ===
-    n_alpha = params["n_alpha"]       # Dict("CH3" => (A, B, C), "CH2" => (...))
-    tau_i = params["tau_i"]
-
-    γ       = 0.45
-    #=
-    n_alpha = Dict(
-            "CH3" => (-0.00839281621531174, -0.2536455462605472, -1.2079684228897345),
-		    "CH2" => (0.0008160680272863482, -0.5540075192744599, 0.4562071725372469),
-            "CH" => (0.03930050901260097, -1.5984961240693298, 10.093752915195292),
-            "C"  => (0.19911712,	0.220305695,	1.292925164)
-               )
-    # molar frac
-    tau_i = Dict(
-        "CH3" => (0.24074570077425134),
-		"CH2" => (0.5526998339960865),
-        "CH" => (0.5604734970596769))
-=#
-    # === Model & group data ===
-    groups      = model.groups.groups[1]
-    num_groups  = model.groups.n_groups[1]
-    S           = model.params.shapefactor
-    σ           = diag(model.params.sigma.values) .* 1e10  # m → Å
-
-    # === Volume contribution ===
-    V = sum(num_groups .* S .* (σ .^ 3))
-
-    # === Compute group contributions ===
-    n_g_matrix = zeros(length(groups), 3)
-    #tau = zeros(length(groups))
-
-    for (i, grp) in enumerate(groups)
-        @assert haskey(n_alpha, grp) "Missing n_alpha entry for group '$grp'"
-        Aα, Bα, Cα = n_alpha[grp]
-        #tau_dum = tau_i[grp]
-
-        n_g_matrix[i, 1] = Aα * S[i] * σ[i]^3 * num_groups[i]
-        n_g_matrix[i, 2] = Bα * S[i] * σ[i]^3 * num_groups[i] / (V^γ)
-        n_g_matrix[i, 3] = Cα * num_groups[i]
-        #tau[i] = tau_dum * num_groups[i]
-    end
-
-    n_g = vec(sum(n_g_matrix, dims = 1))
-    m_gc = sum(num_groups)
-
-    #tau_mix = sum(tau) ./ m_gc # makes it mole fraction based
-    tau_mix = tau_OFE(model,tau_i)
-
-    # === Thermodynamic terms ===
-    R     = Rgas()
-    s_res = entropy_res(model, P, T, z)
-    z_term = (s_res) / (R * m_gc * log(T)^ tau_mix)
-    s_red = -s_res / R
-
-    Mw = Clapeyron.molecular_weight(model, z)
-
-    # === Reduced viscosity correlation ===
-
-    ln_n_reduced = n_g[1] + n_g[2]*z_term + n_g[3]*z_term^2
-    n_reduced = exp(ln_n_reduced) - 1.0
-
-    # === Physical constants ===
-    N_A = Clapeyron.N_A
-    k_B = Clapeyron.k_B
-
-    ρ_molar = molar_density(model, P, T, z)
-    ρ_N = ρ_molar * N_A
-    
-    m = Mw / N_A
-
-    # === Residual contribution ===
-    n_res = n_reduced * (ρ_N^(2/3)) * sqrt(m * k_B * T) / (s_red^(2/3))
-
-    # === Chapman–Enskog or mixture viscosity ===
-    viscosity = if length(z) == 1
-        IB_CE(model, T) + n_res
-    else
-        IB_CE_mix(model, T, z) + n_res
-    end
-
-    return viscosity
-end
-
-function bell_lot_viscosity_noD(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
+function bell_lot_viscosity_sf(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters
 	"""
-	n_alpha = ["CH3" -0.00839281621531174 -0.2536455462605472 -1.2079684228897345;
-		       "CH2" 0.00081612760670802	-0.554009241078019	0.4562494998529377]
+	n_alpha = ["CH3"  -0.015087401852988442 1.1793288696973334 -10.799687755027858;
+		       "CH2"  -0.0006393202735293168 0.9103543410756307 -1.9017722602334455;
+               #"CH" 0.03930050901260097 -1.5984961240693298 10.093752915195292;
+               "CH"  0.04611757489106076 2.064388453805704	7.452487373056837]
+    #n_alpha = Dict(
+    #        "CH3" => (-0.016318734957479455, 1.2247150298572662 -10.78613820563853),
+    #        "CH2" => (2.93E-04,	-1.011917658,	-2.991386128),
+    #        "CH"  => (0.042101628,	-1.407726021,	11.03083133)
+    #        )
     # molar frac
-    tau_i = ["CH3" 0.24074197784699647;
-		    "CH2" 0.5527120103735335]
+    tau_i = Dict(
+            "CH3" => (1.1714896072382803),
+            "CH2" => (1.2),
+            "CH"  => (1.6275002221121222)
+        )
     #vdw, arithmetic mean
     #tau_i = ["CH3" 0.823964850820917;
 #		    "CH2" 0.581851010454827;
@@ -262,15 +115,14 @@ function bell_lot_viscosity_noD(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	groups = model.groups.groups[1]   
 	num_groups = model.groups.n_groups[1]  # corresponding counts
 	n_g_matrix = zeros(length(groups), 3)  # rows: groups, cols: 3 coefficients
-    tau = zeros(length(groups))
 
-    S=model.params.shapefactor
+    S=model.params.shapefactor.values
     σ = diag(model.params.sigma.values) .* 1e10
 
     γ= 0.45
+    D_i = 12.536185542576174
 
     V= sum(num_groups.*S.*(σ.^3))
-    #B=sum((n_groups.*)./(V.^γ))
 
     # A calculate
     for i in 1:length(groups)
@@ -283,27 +135,26 @@ function bell_lot_viscosity_noD(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
         n_g_matrix[i,1] = A_alpha * S[i] * σ[i] ^ 3 * num_groups[i]
         n_g_matrix[i,2] = B_alpha * S[i] * σ[i] ^ 3 * num_groups[i] / (V^γ)
         n_g_matrix[i,3] = C_alpha * num_groups[i]
-
-        row_tau = findfirst(x -> x == groups[i], tau_i[:,1])
-        tau[i] = tau_i[row_tau, 2] * num_groups[i]
     end
 
 	# Now sum across groups for each coefficient (column)
 	n_g = sum(n_g_matrix, dims = 1)  # sums over rows for each column, result is 1x3 matrix
 
-    m_gc = sum(model.groups.n_groups[1]) # total number of groups
+    m_gc = sum(model.groups.n_groups[1].*S) # total number of groups
 
-    tau_mix = sum(tau) ./ m_gc # makes it mole fraction based
+    tau_mix = tau_OFE(model,tau_i) # makes it mole fraction based
    
     R = Rgas()
     s_res = entropy_res(model, P, T, z)
-    Z =  (s_res) / (R * m_gc * log(T)^ tau_mix)  # molar entropy term
+    Z =  (-s_res) / (R * m_gc * log(T)^ tau_mix)  # molar entropy term
 
     s_red = -s_res ./ R
 
     Mw = Clapeyron.molecular_weight(model, z)
 
-    ln_n_reduced = n_g[1] + n_g[2] * Z + n_g[3] * Z ^ 2
+    D = D_i * m_gc
+
+    ln_n_reduced = n_g[1] + n_g[2] * Z + n_g[3] * Z ^ 2 + D * Z ^ 3
 
     n_reduced = exp(ln_n_reduced) - 1.0
 
@@ -326,8 +177,7 @@ function bell_lot_viscosity_noD(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	return viscosity
 end
 
-
-function bell_lot_viscosity_opt_epsilon(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params::Dict)
+function bell_lot_viscosity_opt(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params::Dict)
     # === Extract optimization parameters ===
     n_alpha = params["n_alpha"]       # Dict("CH3" => (A, B, C), "CH2" => (...))
     γ       = params["gamma"]::Float64
@@ -337,7 +187,7 @@ function bell_lot_viscosity_opt_epsilon(model::EoSModel, P, T, z = StaticArrays.
     # === Model & group data ===
     groups      = model.groups.groups[1]
     num_groups  = model.groups.n_groups[1]
-    S           = model.params.shapefactor
+    S           = model.params.shapefactor.values
     σ           = diag(model.params.sigma.values) .* 1e10  # m → Å
 
     # === Volume contribution ===
@@ -345,30 +195,32 @@ function bell_lot_viscosity_opt_epsilon(model::EoSModel, P, T, z = StaticArrays.
 
     # === Compute group contributions ===
     n_g_matrix = zeros(length(groups), 3)
-    tau = zeros(length(groups))
+#    tau = zeros(length(groups))
 
     for (i, grp) in enumerate(groups)
         @assert haskey(n_alpha, grp) "Missing n_alpha entry for group '$grp'"
         Aα, Bα, Cα = n_alpha[grp]
-        tau_dum = tau_i[grp]
+#        tau_dum = tau_i[grp]
 
         n_g_matrix[i, 1] = Aα * S[i] * σ[i]^3 * num_groups[i]
         n_g_matrix[i, 2] = Bα * S[i] * σ[i]^3 * num_groups[i] / (V^γ)
         n_g_matrix[i, 3] = Cα * num_groups[i]
-        tau[i] = tau_dum * num_groups[i]
+#        tau[i] = tau_dum * num_groups[i]
     end
 
     n_g = vec(sum(n_g_matrix, dims = 1))
+    #m_gc = sum(num_groups)
     m_gc = sum(num_groups)
-
-    tau_mix = sum(tau)
-    epsilon =  ϵ_OFE(model)
 
     # === Thermodynamic terms ===
     R     = Rgas()
     s_res = entropy_res(model, P, T, z)
-    z_term = (s_res) / (R * m_gc * log(T /(tau_mix * epsilon)))
+    #z_term = (s_res) / (R * m_gc * log(T)^ tau_mix)
+
     s_red = -s_res / R
+
+    z_term = (-s_res / (s_id) +  log(-s_res / R) / m_gc)
+
 
     Mw = Clapeyron.molecular_weight(model, z)
 
@@ -400,18 +252,16 @@ function bell_lot_viscosity_opt_epsilon(model::EoSModel, P, T, z = StaticArrays.
     return viscosity
 end
 
-
-function bell_lot_viscosity_opt_mgc(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params::Dict)
+function bell_lot_viscosity_opt_s_idref(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params::Dict)
     # === Extract optimization parameters ===
     n_alpha = params["n_alpha"]       # Dict("CH3" => (A, B, C), "CH2" => (...))
     γ       = params["gamma"]::Float64
-    tau_i = params["tau_i"]
-    D_i = params["D_i"]
+    D_i     = params["D_i"]
 
     # === Model & group data ===
     groups      = model.groups.groups[1]
     num_groups  = model.groups.n_groups[1]
-    S           = model.params.shapefactor
+    S           = model.params.shapefactor.values
     σ           = diag(model.params.sigma.values) .* 1e10  # m → Å
 
     # === Volume contribution ===
@@ -434,15 +284,96 @@ function bell_lot_viscosity_opt_mgc(model::EoSModel, P, T, z = StaticArrays.SA[1
 
     n_g = vec(sum(n_g_matrix, dims = 1))
     #m_gc = sum(num_groups)
+
+    total_sf = sum(model.params.shapefactor.values .* model.groups.n_groups[1])
+    m_gc = sum(model.groups.n_groups[1])
+    # === Thermodynamic terms ===
+    R     = Rgas()
+    s_res = entropy_res(model, P, T, z)
+    #z_term = (s_res) / (R * m_gc * log(T)^ tau_mix)
+
+    s_red = -s_res / R
+    s_id = entropy_ideal(model, P, T, z)
+
+    z_term = (-s_res / (s_id) +  log(-s_res / R) / total_sf)
+    #z_term = (-s_res / (R * m_gc)) # +  log(-s_res / R) / total_sf)
+
+
+    Mw = Clapeyron.molecular_weight(model, z)
+
+    # === Reduced viscosity correlation ===
+    #D = (D_1+D_2/Mw)^(-1) #* m_gc
+    D = D_i * total_sf
+    ln_n_reduced = n_g[1] + n_g[2]*z_term + n_g[3]*z_term^2 + D*z_term^3
+    n_reduced = exp(ln_n_reduced) - 1.0
+
+    # === Physical constants ===
+    N_A = Clapeyron.N_A
+    k_B = Clapeyron.k_B
+
+    ρ_molar = molar_density(model, P, T, z)
+    ρ_N = ρ_molar * N_A
+    
+    m = Mw / N_A
+
+    # === Residual contribution ===
+    n_res = n_reduced * (ρ_N^(2/3)) * sqrt(m * k_B * T) / (s_red ^ (2/3))
+
+    # === Chapman–Enskog or mixture viscosity ===
+    viscosity = if length(z) == 1
+        IB_CE(model, T) + n_res
+    else
+        IB_CE_mix(model, T, z) + n_res
+    end
+
+    return viscosity
+end
+
+
+
+function bell_lot_viscosity_opt_ogref(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params::Dict)
+    # === Extract optimization parameters ===
+    n_alpha = params["n_alpha"]       # Dict("CH3" => (A, B, C), "CH2" => (...))
+    γ       = params["gamma"]::Float64
+    tau_i   = params["tau_i"]
+    D_i     = params["D_i"]
+
+    # === Model & group data ===
+    groups      = model.groups.groups[1]
+    num_groups  = model.groups.n_groups[1]
+    S           = model.params.shapefactor.values
+    σ           = diag(model.params.sigma.values) .* 1e10  # m → Å
+
+    # === Volume contribution ===
+    V = sum(num_groups .* S .* (σ .^ 3))
+
+    # === Compute group contributions ===
+    n_g_matrix = zeros(length(groups), 3)
+    tau = zeros(length(groups))
+
+    for (i, grp) in enumerate(groups)
+        @assert haskey(n_alpha, grp) "Missing n_alpha entry for group '$grp'"
+        Aα, Bα, Cα = n_alpha[grp]
+        tau_dum = tau_i[grp]
+
+        n_g_matrix[i, 1] = Aα * S[i] * σ[i]^3 * num_groups[i]
+        n_g_matrix[i, 2] = Bα * S[i] * σ[i]^3 * num_groups[i] / (V^γ)
+        n_g_matrix[i, 3] = Cα * num_groups[i]
+        tau[i] = tau_dum * num_groups[i]
+    end
+
+    n_g = vec(sum(n_g_matrix, dims = 1))
+    #m_gc = sum(num_groups)
     m_gc = sum(model.params.shapefactor.values .* model.groups.n_groups[1])
 
-    tau_mix = tau_OFE(model,tau_i) # makes it mole fraction based
+    #tau_mix = tau_OFE(model,tau_i) # makes it mole fraction based
+    tau_mix = sum(tau)./sum(num_groups)
 
     # === Thermodynamic terms ===
     R     = Rgas()
     s_res = entropy_res(model, P, T, z)
     #z_term = (s_res) / (R * m_gc * log(T)^ tau_mix)
-    z_term = m_gc * (-s_res) / (R * log(T)^ tau_mix)
+    z_term =  (-s_res) / (R * log(T)^ tau_mix)
     #s_red = -s_res / R
 
     Mw = Clapeyron.molecular_weight(model, z)
@@ -463,7 +394,7 @@ function bell_lot_viscosity_opt_mgc(model::EoSModel, P, T, z = StaticArrays.SA[1
     m = Mw / N_A
 
     # === Residual contribution ===
-    n_res = n_reduced * (ρ_N^(2/3)) * sqrt(m * k_B * T) / (z_term^(2/3))
+    n_res = n_reduced * (ρ_N^(2/3)) * sqrt(m * k_B * T)
 
     # === Chapman–Enskog or mixture viscosity ===
     viscosity = if length(z) == 1
@@ -471,6 +402,75 @@ function bell_lot_viscosity_opt_mgc(model::EoSModel, P, T, z = StaticArrays.SA[1
     else
         IB_CE_mix(model, T, z) + n_res
     end
+
+    return viscosity
+end
+
+function IB_pure_const_6param(
+    model::EoSModel,
+    P, T,
+    z = StaticArrays.SA[1.0];
+    ξ::Float64 = 1.0,
+    C_i::Float64 = 0.0,
+    a1::Float64 = 59.22750961,
+    a2::Float64 = -0.30570183,
+    b1::Float64 = -58.83680498,
+    b2::Float64 = 0.31422912,
+    c::Float64  = -0.01913978,
+    d::Float64  = 8.76828433
+)
+    """
+    Overall viscosity using a 6-parameter sigmoid correlation for ln(n_red + 1),
+    consistent with your dimensionless collapse.
+
+    Inputs:
+      - model, P, T, z: Clapeyron model and state (pure by default: z = SA[1.0])
+      - ξ: scaling factor for the entropy coordinate x (defaults to 1.0)
+      - C_i: small offset subtracted from n_red after exp(log) - 1
+      - (a1, a2, b1, b2, c, d): 6-parameter coefficients (defaults from your fit)
+
+    Returns:
+      - viscosity (same units as IB_CE / IB_CE_mix for the given model)
+    """
+
+    # Thermodynamic entropies and critical quantities
+    s_res = entropy_res(model, P, T, z)
+    s_id  = Clapeyron.entropy(model, P, T, z) - s_res
+
+    Tc, Pc = crit_pure(model)
+    s_crit = entropy_res(model, Pc, Tc)
+
+    # Reduced entropy coordinate (scaled by ξ)
+    x_es   = (-s_res / s_id) + log(s_res / s_crit)
+    x_scaled = x_es / ξ
+
+    # 6-parameter model for ln(n_red + 1)
+    ln_n_plus = ((a1 + a2 * s_res) / (1 + exp(c * x_scaled)) +
+                 (b1 + b2 * s_res) / (1 + exp(-c * x_scaled))) * x_scaled +
+                d / s_crit
+
+    # Dimensionless reduced viscosity (subtract optional offset C_i)
+    n_reduced = exp(ln_n_plus) - 1.0 - C_i
+
+    # Number density and mass per molecule
+    N_A = Clapeyron.N_A
+    k_B = Clapeyron.k_B
+
+    ρ_molar = molar_density(model, P, T, z)
+    ρ_N     = ρ_molar * N_A
+
+    Mw = Clapeyron.molecular_weight(model, z)
+    m  = Mw / N_A
+
+    # Avoid potential division-by-zero in the (x_scaled)^(2/3) factor
+    # (the theoretical form uses x^(2/3); here we ensure numerical robustness)
+    denom = (abs(x_scaled))^(2/3)
+
+    # Dimensional residual viscosity
+    n_res = (n_reduced * (ρ_N^(2/3)) * sqrt(m * k_B * T)) / denom
+
+    # Baseline viscosity (pure vs mixture)
+    viscosity = IB_CE_mix(model, T, z) + n_res
 
     return viscosity
 end

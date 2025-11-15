@@ -2,6 +2,39 @@ using LinearAlgebra, StaticArrays
 #csv_phase("Training DATA/Branched Alkane/2,2,4-trimethylpentane.csv",SAFTgammaMie(["2,2,4-trimethylpentane"]),true)
 
 #model = SAFTgammaMie(["Hexane"], idealmodel = WalkerIdeal)
+function entropy_ideal(model::EoSModel, p , T , z = StaticArrays.SA[1.0])
+    s_id = Clapeyron.entropy(model, p, T, z) - entropy_res(model, p, T, z)
+    return s_id
+end
+
+function global_crit_dict(models)
+    crit_dict = Dict{String, Tuple{Float64, Float64}}()
+
+    for i in 1:length(models)
+        crit_point = crit_pure(models[i])  # returns (P_c, T_c)
+
+        model_name = models[i].components[1]  # Use component name as key
+        crit_dict[model_name] = (crit_point[2], crit_point[1])
+    end
+    global crit_dict
+    return 
+end
+
+
+function entropy_res_crit(model::EoSModel)
+    """
+    Compute residual entropy at the critical point,
+    using precomputed critical T and P from CRIT_DICT.
+    """
+    model_name = string(model.components[1])
+
+    if haskey(crit_dict, model_name)
+        P_c, T_c = crit_dict[model_name]
+    end
+
+    res_crit_entr = entropy_res(model, P_c, T_c)
+    return res_crit_entr
+end
 
 function gamma(model,p,T; z = StaticArrays.SA[1.0])
     betaT = Clapeyron.VT.isothermal_compressibility(model, p, T, z) # 1/Pa
@@ -191,6 +224,29 @@ function tau_OFE(model::EoSModel, tau_i)
     return tau_ofe
 end
 
+function xi_OFE(model::EoSModel, ξ_i)
+    """
+    epsilon pure fluid equivalent
+    """
+    xₛₖ = x_sk(model)
+    x_sk_order = model.groups.flattenedgroups
+    x_sk_dict = Dict(x_sk_order[i] => xₛₖ[i] for i in eachindex(x_sk_order))
+    x_sk_vec   = [x_sk_dict[g] for g in x_sk_order] # ensure in same order
+    xi_vec = [ξ_i[g] for g in x_sk_order] # has to be matrix
+
+    n = length(x_sk_order)
+    xi_mat = zeros(n,n)
+    for i in 1:n, j in 1:n
+        xi_mat[i, j] = (i == j) ? xi_vec[i] : sqrt(xi_vec[i] * xi_vec[j]) # using mean value
+    end
+
+    #x_vec = model.groups.n_groups[1]./sum(model.groups.n_groups[1])
+    #vdW mixing rule
+    tau_ofe = (x_sk_vec' * (xi_mat.^1) * x_sk_vec)
+    #tau_ofe = sum(tau_vec .* x_vec)
+    return tau_ofe
+end
+
 function load_experimental_data(path::AbstractString)
     """
     Format experimental data from CSV
@@ -204,3 +260,58 @@ function load_experimental_data(path::AbstractString)
     #end
     return df
 end
+
+function A_vdw_opt(model::EoSModel, A_CH3, A_CH2,A_CH)
+    """
+    epsilon pure fluid equivalent
+    """
+    A_i = Dict("CH3" => A_CH3, "CH2" => A_CH2,"CH" =>A_CH)
+    #x_sk_order = ["CH3", "CH2",]
+    xₛₖ = x_sk(model)
+    x_sk_order = model.groups.flattenedgroups
+    x_sk_dict = Dict(x_sk_order[i] => xₛₖ[i] for i in eachindex(x_sk_order))
+    x_sk_vec   = [x_sk_dict[g] for g in x_sk_order] # ensure in same order
+    A_vec = [A_i[g] for g in x_sk_order] # has to be matrix
+
+    n = length(x_sk_order)
+    A_mat = zeros(n,n)
+    for i in 1:n, j in 1:n
+        A_mat[i, j] = (i == j) ? A_vec[i] : (A_vec[i] + A_vec[j])/2 # using mean value
+    end
+
+    #x_vec = model.groups.n_groups[1]./sum(model.groups.n_groups[1])
+    #vdW mixing rule
+    
+    A_ofe = (x_sk_vec' * (A_mat.^1) * x_sk_vec)
+    #tau_ofe = sum(tau_vec .* x_vec)
+    return A_ofe
+end
+A_vdw_opt(x_sk(model), 0.5, 0.2,0.2)
+A_vdw_opt(model,0.5,0.2,0.2)
+A_i = Dict("CH3" => 0.5, "CH2" => 0.2)
+A_vdw(model,A_i)
+function A_vdw(model::EoSModel, A_i)
+    """
+    epsilon pure fluid equivalent
+    """
+    
+    xₛₖ = x_sk(model)
+    x_sk_order = model.groups.flattenedgroups
+    x_sk_dict = Dict(x_sk_order[i] => xₛₖ[i] for i in eachindex(x_sk_order))
+    x_sk_vec   = [x_sk_dict[g] for g in x_sk_order] # ensure in same order
+    A_vec = [A_i[g] for g in x_sk_order] # has to be matrix
+
+    n = length(x_sk_order)
+    A_mat = zeros(n,n)
+    for i in 1:n, j in 1:n
+        A_mat[i, j] = (i == j) ? A_vec[i] : (A_vec[i] + A_vec[j])/2 # using mean value
+    end
+
+    #x_vec = model.groups.n_groups[1]./sum(model.groups.n_groups[1])
+    #vdW mixing rule
+    
+    A_ofe = (x_sk_vec' * (A_mat.^1) * x_sk_vec)
+    #tau_ofe = sum(tau_vec .* x_vec)
+    return A_ofe
+end
+A_vdw(x_sk(models[1]),0.5,0.2)

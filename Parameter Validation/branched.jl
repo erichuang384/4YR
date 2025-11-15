@@ -42,7 +42,7 @@ println("AAD = ", AAD)
 #labels = ["2,6,10,14-tetramethylpentadecane", "Isobutane", "Isopentane", "Isohexane", "Squalane"]
 labels = ["2,2,4-trimethylpentane", "2,6,10,14-tetramethylpentadecane", "Isobutane", "Isopentane", "Isohexane", "Heptamethylnonane", "Squalane"]
 p_all = []  # store plots
-
+#=
 for i in 1:length(models)
     model = models[i]
     data = exp_data[i]
@@ -72,7 +72,7 @@ p_all[1]
 p_all[2]
 p_all[3]
 p_all[4]
-
+=#
 
 
 #savefig(p_all[1],"AAD vs res ent Octane")

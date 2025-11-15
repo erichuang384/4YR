@@ -4,23 +4,22 @@ function make_bell_objective(models::Vector, datasets::Vector{DataFrame})
     function objective(x)
         # unpack optimization vector
         n_alpha = Dict(
-            "CH3" => (-0.016248943,	-1.301165292,	-13.21531378),
-            "CH2" => (2.93E-04,	-1.011917658,	-2.991386128),
-            "CH"  => (0.042101628,	-1.407726021,	11.03083133
-)
+            "CH3" => (-0.015087401852988442, 1.1793288696973334, -10.799687755027858),
+            "CH2" => (-0.0006393202735293168, 0.9103543410756307, -1.9017722602334455),
+            "CH"  => (x[1], x[2], x[3])
         )
 
         tau_i = Dict(
-            "CH3" => (x[1]),
-            "CH2" => (x[2]),
-            "CH"  => (x[3])
+            "CH3" => (1.1714896072382803),
+            "CH2" => (1.2),
+            "CH"  => (x[4])
         )
 
         params = Dict(
             "n_alpha" => n_alpha,
             "tau_i" => tau_i,
-            "gamma"   => 0.437793675,
-            "D_i"       => -7.176085783
+            "gamma"   => 0.45,
+            "D_i"       => 12.536185542576174
         )
 
         total_error = 0.0
@@ -49,8 +48,8 @@ function make_bell_objective(models::Vector, datasets::Vector{DataFrame})
 end
 
 function optimize_bell_parameters!(models, datasets;
-    lower = [0.0, 0.0, 0.0],
-    upper = [1.0, 1.0, 1.0],
+    lower = fill(0.0,4),
+    upper = fill(0.0,4),
     seed = 42, σ0 = 0.5, max_iters = 8000
 )
     Random.seed!(seed)
@@ -59,7 +58,7 @@ function optimize_bell_parameters!(models, datasets;
     # initial guess
     #x0 = [-0.0068188, -0.02899088, -1.6803e-9, -0.000505772, -0.019999, -9.996391e-10, 0.05499806, -0.014602705977361975]
 
-    x0 = [0.61, 0.5, 1.0]
+    x0 = [0.04, 1.4, 11.03, 0.7]
     println("Starting CMA-ES optimization with seed = $seed")
     println("Initial parameters: ", x0)
 
@@ -93,14 +92,14 @@ end
 
 # === Example Usage ===
 models = [
-    SAFTgammaMie(["Pentane"]),
-    SAFTgammaMie(["Hexane"]),
-    SAFTgammaMie(["Octane"]),
-    SAFTgammaMie(["Decane"]),
-    SAFTgammaMie(["Dodecane"]),
-    SAFTgammaMie(["Tridecane"]),
-    SAFTgammaMie(["Pentadecane"]),
-    SAFTgammaMie(["Hexadecane"]),
+    #SAFTgammaMie(["Pentane"]),
+    #SAFTgammaMie(["Hexane"]),
+    #SAFTgammaMie(["Octane"]),
+    #SAFTgammaMie(["Decane"]),
+    #SAFTgammaMie(["Dodecane"]),
+    #SAFTgammaMie(["Tridecane"]),
+    #SAFTgammaMie(["Pentadecane"]),
+    #SAFTgammaMie(["Hexadecane"]),
     #SAFTgammaMie(["2,2,4-trimethylpentane"]),
     SAFTgammaMie(["2,6,10,14-tetramethylpentadecane"]),
     SAFTgammaMie(["2-methylpropane"]),
@@ -113,14 +112,14 @@ models = [
 ]
 
 data_paths = [
-    "Training DATA/Pentane DETHERM.csv",
-    "Training DATA/Hexane DETHERM.csv",
-    "Training DATA/Octane DETHERM.csv",
-    "Training DATA/Decane DETHERM.csv",
-    "Training DATA/Dodecane DETHERM.csv",
-    "Validation DATA/Tridecane DETHERM.csv",
-    "Validation DATA/Pentadecane DETHERM.csv",
-    "Training DATA/Hexadecane DETHERM.csv",
+    #"Training DATA/Pentane DETHERM.csv",
+    #"Training DATA/Hexane DETHERM.csv",
+    #"Training DATA/Octane DETHERM.csv",
+    #"Training DATA/Decane DETHERM.csv",
+    #"Training DATA/Dodecane DETHERM.csv",
+    #"Validation DATA/Tridecane DETHERM.csv",
+    #"Validation DATA/Pentadecane DETHERM.csv",
+    #"Training DATA/Hexadecane DETHERM.csv",
     #"Training DATA/Branched Alkane/2,2,4-trimethylpentane.csv",
     "Training DATA/Branched Alkane/2,6,10,14-tetramethylpentadecane.csv",
     "Training DATA/Branched Alkane/2-methylpropane.csv",
@@ -141,9 +140,9 @@ datasets = [load_experimental_data(p) for p in data_paths]
 res = optimize_bell_parameters!(
     models,
     datasets;
-   lower  = [0.0, 0.0, 0.0],
+   lower  = [-3.0, -5.0, -5.0, -2.0],
 
-    upper  = [1.5, 1.5, 1.5],
+    upper  = [5.0, 150.5, 350.0, 2.0],
     seed = 42,
     σ0 = 0.5,
     max_iters = 10000

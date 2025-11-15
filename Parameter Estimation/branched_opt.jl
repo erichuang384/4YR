@@ -1,0 +1,303 @@
+using CSV, DataFrames
+using Clapeyron
+using Plots
+using Printf, LaTeXStrings, Statistics
+using CMAEvolutionStrategy
+using Random
+
+# -----------------------------------
+# Models and data (branched alkanes)
+# -----------------------------------
+models = [
+    SAFTgammaMie(["2,6,10,14-tetramethylpentadecane"]),
+    SAFTgammaMie(["2-methylpropane"]),
+    SAFTgammaMie(["2-methylbutane"]),
+    SAFTgammaMie(["2-methylpentane"]),
+    SAFTgammaMie(["9-octylheptadecane"]),
+    SAFTgammaMie(["squalane"])
+]
+
+data_files = [
+    "Training DATA/Branched Alkane/2,6,10,14-tetramethylpentadecane.csv",
+    "Training DATA/Branched Alkane/2-methylpropane.csv",
+    "Training DATA/Branched Alkane/2-methylbutane.csv",
+    "Training DATA/Branched Alkane/2-methylpentane.csv",
+    "Training DATA/Branched Alkane/9-octylheptadecane.csv",
+    "Training DATA/Branched Alkane/squalane.csv"
+]
+
+# -----------------------------------
+# Reduced viscosity calculation for group-contribution model
+# -----------------------------------
+function reduced_visc(model::EoSModel, P, T, visc)
+    visc_CE = IB_CE(model, T)
+    s_res   = entropy_res(model, P, T)
+    R       = Clapeyron.Rgas()
+    total_sf = sum(model.params.shapefactor.values.* model.groups.n_groups[1])
+
+    # z-term
+    z_term = (-s_res./ R)./ total_sf
+
+    # density and molecular mass for reduced viscosity
+    N_A     = Clapeyron.N_A
+    k_B     = Clapeyron.k_B
+    ρ_molar = molar_density(model, P, T)
+    ρ_N     = ρ_molar.* N_A
+    Mw      = Clapeyron.molecular_weight(model)
+    m       = Mw / N_A
+
+    n_reduced = (visc.- visc_CE)./ ((ρ_N.^ (2/3)).* sqrt.(m.* k_B.* T))
+    return n_reduced, z_term
+end
+
+# -----------------------------------
+# Precompute datasets and group data
+# -----------------------------------
+model_names    = [m.groups.components[1] for m in models]
+data_z_list    = Vector{Vector{Float64}}(undef, length(models))
+data_y_list    = Vector{Vector{Float64}}(undef, length(models))
+data_T_list    = Vector{Vector{Float64}}(undef, length(models))  # masked T aligned with z,y
+crit_pure_list = Vector{Float64}(undef, length(models))
+x_sk_list      = Vector{Vector{Float64}}(undef, length(models))
+Mw_list        = Vector{Float64}(undef, length(models))
+
+# Group counts and parameters
+ch3_count_list    = Vector{Float64}(undef, length(models))
+ch2_count_list    = Vector{Float64}(undef, length(models))
+ch_count_list     = Vector{Float64}(undef, length(models))
+sigma_ch3_list    = Vector{Float64}(undef, length(models))
+sigma_ch2_list    = Vector{Float64}(undef, length(models))
+sigma_ch_list     = Vector{Float64}(undef, length(models))
+S_ch3_model_list  = Vector{Float64}(undef, length(models))
+S_ch2_model_list  = Vector{Float64}(undef, length(models))
+S_ch_model_list   = Vector{Float64}(undef, length(models))
+
+total_points = Ref(0)
+
+for (i, (model, file)) in enumerate(zip(models, data_files))
+    try
+        exp_data = CSV.read(file, DataFrame)
+        P, T, visc_exp = exp_data[:, 1], exp_data[:, 2], exp_data[:, 3]
+
+        # Compute reduced viscosity and z-term
+        results  = reduced_visc.(models[i], P, T, visc_exp)
+        n_red    = [r[1] for r in results]
+        z_term   = [r[2] for r in results]
+
+        mask = isfinite.(n_red).& isfinite.(z_term).& (n_red.> -1)
+
+        data_z_list[i] = z_term[mask]
+        data_y_list[i] = log.(n_red[mask].+ 1.0)
+        data_T_list[i] = T[mask]  # store masked T aligned with z,y
+
+        # Critical temperature
+        crit_point        = crit_pure(model)
+        crit_pure_list[i] = crit_point[1]
+
+        # x_sk and Mw
+        x_sk_list[i] = x_sk(models[i])
+        Mw_list[i]   = Clapeyron.molecular_weight(model)
+
+        # Extract group data via direct findfirst
+        groups = model.groups.groups[1]             # group names
+        ng     = model.groups.n_groups[1]           # counts per group
+        Svals  = model.params.shapefactor.values    # shapefactors aligned with groups
+        σdiag  = diag(model.params.sigma.values)    # sigma per group (m), diagonal
+
+        i_ch3 = findfirst(==("CH3"), groups)
+        i_ch2 = findfirst(==("CH2"), groups)
+        i_ch  = findfirst(==("CH"),  groups)
+
+        ch3_count_list[i]    = i_ch3 === nothing ? 0.0 : ng[i_ch3]
+        S_ch3_model_list[i]  = i_ch3 === nothing ? 0.0 : Svals[i_ch3]
+        sigma_ch3_list[i]    = i_ch3 === nothing ? 0.0 : σdiag[i_ch3]*1e10  # Å
+
+        ch2_count_list[i]    = i_ch2 === nothing ? 0.0 : ng[i_ch2]
+        S_ch2_model_list[i]  = i_ch2 === nothing ? 0.0 : Svals[i_ch2]
+        sigma_ch2_list[i]    = i_ch2 === nothing ? 0.0 : σdiag[i_ch2]*1e10  # Å
+
+        ch_count_list[i]     = i_ch  === nothing ? 0.0 : ng[i_ch]
+        S_ch_model_list[i]   = i_ch  === nothing ? 0.0 : Svals[i_ch]
+        sigma_ch_list[i]     = i_ch  === nothing ? 0.0 : σdiag[i_ch]*1e10   # Å
+
+        total_points[] += length(data_z_list[i])
+    catch err
+        @warn "Skipping invalid dataset" file error=err
+        data_z_list[i]     = Float64[]
+        data_y_list[i]     = Float64[]
+        data_T_list[i]     = Float64[]
+        crit_pure_list[i]  = NaN
+        x_sk_list[i]       = Float64[]
+        Mw_list[i]         = NaN
+        ch3_count_list[i]  = NaN
+        ch2_count_list[i]  = NaN
+        ch_count_list[i]   = NaN
+        S_ch3_model_list[i]= NaN
+        S_ch2_model_list[i]= NaN
+        S_ch_model_list[i] = NaN
+        sigma_ch3_list[i]  = NaN
+        sigma_ch2_list[i]  = NaN
+        sigma_ch_list[i]   = NaN
+    end
+end
+
+println("Loaded $(total_points[]) valid data points across $(length(models)) datasets.")
+if total_points[] == 0
+    error("No valid data points loaded — check file paths and data formats.")
+end
+
+# ------------------------------------------------------------
+# Fixed constants from your 12-parameter optimization (CH3/CH2 set)
+# [A_CH3, B_CH3, C_CH3, A_CH2, B_CH2, C_CH2, gamma, D_CH3, D_CH2, m1, m2, m3]
+# ------------------------------------------------------------
+A_CH3_0, B_CH3_0, C_CH3_0,
+A_CH2_0, B_CH2_0, C_CH2_0,
+gamma_fix, D_CH3_0, D_CH2_0,
+m1_fix, m2_fix, m3_fix = (
+    0.3601338624950054, 
+    0.012571400966911837, 
+    -0.08672928389751446, 
+    -1.4644062984382378, 
+    0.048206501729219614, 
+    -0.005570581035397222, 
+    0.3694136911049116, 
+    0.00018838331468305712, 
+    0.0001639766119049967, 
+    -1.2321620400064253, 
+    3.2451657914282355, 
+    1.038143892540589
+)
+
+# ------------------------------------------------------------
+# Initial guess for CH parameters [A_CH, B_CH, C_CH, D_CH]
+# (neutral average from CH3/CH2 constants)
+# ------------------------------------------------------------
+A_CH0 = 0.5*(A_CH3_0 + A_CH2_0)
+B_CH0 = 0.5*(B_CH3_0 + B_CH2_0)
+C_CH0 = 0.5*(C_CH3_0 + C_CH2_0)
+D_CH0 = 0.5*(D_CH3_0 + D_CH2_0)
+
+x0 = [-6.562326891295085, 0.12360584280671841, 0.06636566123013152, 0.0017278397270946008]
+println("Initial CH guess:")
+@printf "  A_CH = %.10f, B_CH = %.10f, C_CH = %.10f, D_CH = %.10f\n" x0...
+
+# ------------------------------------------------------------
+# Objective: optimize CH params only (A_CH, B_CH, C_CH, D_CH)
+# CH shapefactor S_ch is taken as model constant (S_ch_model_list), not optimized
+# Additive contributions from CH3 + CH2 + CH for n_g2, n_g3, D
+# ------------------------------------------------------------
+function sse_CH_only(params::AbstractVector{<:Real})
+    if length(params) != 4
+        return 1e20
+    end
+    A_CH, B_CH, C_CH, D_CH = params
+    total = 0.0
+
+    for i in 1:length(models)
+        z = data_z_list[i]
+        y = data_y_list[i]
+        T = data_T_list[i]
+        if isempty(z); continue; end
+
+        # Precomputed terms (named ch, ch2, ch3)
+        ch3  = ch3_count_list[i]
+        ch2  = ch2_count_list[i]
+        ch   = ch_count_list[i]
+
+        S_ch3 = S_ch3_model_list[i]
+        S_ch2 = S_ch2_model_list[i]
+        S_ch  = S_ch_model_list[i]    # constant from model
+
+        sigma_ch3 = sigma_ch3_list[i]^3
+        sigma_ch2 = sigma_ch2_list[i]^3
+        sigma_ch  = sigma_ch_list[i]^3
+
+        Tc  = crit_pure_list[i]
+        xsk = x_sk_list[i]
+        Mw  = Mw_list[i]
+
+        # Volumes
+        V_ch3 = ch3 * S_ch3 * sigma_ch3
+        V_ch2 = ch2 * S_ch2 * sigma_ch2
+        V_ch  = ch  * S_ch  * sigma_ch
+        V_tot = V_ch3 + V_ch2 + V_ch
+        if !(isfinite(V_tot)) || V_tot <= 0
+            total += 1e20
+            continue
+        end
+
+        # Model terms
+        n_g1 = A_vdw_opt(models[i], A_CH3_0, A_CH2_0,A_CH)
+        #n_g1       = n_g1_fixed + A_CH * (V_ch / V_tot)
+
+        n_g2= ((B_CH3_0 * V_ch3) + (B_CH2_0 * V_ch2) + (B_CH * V_ch))/V_tot^gamma_fix
+        #n_g2     = n_g2_num / V_tot^gamma_fix
+
+        acentric_fact = acentric_factor(models[i])
+        m_i  = m1_fix + m2_fix*acentric_fact + m3_fix*acentric_fact^2
+
+        #m_i  = m1_fix + m2_fix*Mw + m3_fix*Mw^2
+
+        n_g3 = (C_CH3_0 * ch3 + C_CH2_0 * ch2 + C_CH * ch).* (1 .+ m_i.* sqrt.(T./ Tc))
+
+        D    = (D_CH3_0 * V_ch3 + D_CH2_0 * V_ch2 + D_CH * V_ch)
+
+        y_pred = n_g1.+ n_g2.* z.+ n_g3.* (z.^ 2).+ D.* (z.^ 3)
+        if any(!isfinite, y_pred)
+            total += 1e20
+            continue
+        end
+
+        # normalized SSE on eta = exp(y) - 1
+        η      = exp.(y).- 1
+        η_pred = exp.(y_pred).- 1
+        total += sum(((η.- η_pred)./ η).^ 2) / length(y)
+    end
+
+    return isfinite(total) ? total : 1e20
+end
+
+# ------------------------------------------------------------
+# Run CMA-ES to optimize CH parameters
+# ------------------------------------------------------------
+println("\nStarting CMA-ES optimization of CH parameters (A_CH, B_CH, C_CH, D_CH) on branched alkanes...")
+
+σ0 = 1e-3
+seed = 42
+Random.seed!(seed)
+stagnation_iters = 3000
+iter_counter = Ref(0)
+
+result = minimize(
+    sse_CH_only,
+    x0,
+    σ0;
+    seed = seed,
+    verbosity = 2,
+    stagnation = stagnation_iters,
+    maxiter = 8000,
+    ftol = 1e-10,
+    callback = (opt, x, fx, ranks) -> begin
+        iter_counter[] += 1
+        if iter_counter[] % 50 == 0
+            try
+                println(@sprintf("Iter %d: fmin=%.6e best=%s",
+                                 iter_counter[], minimum(fx), string(xbest(opt))))
+            catch
+                println(@sprintf("Iter %d: callback invoked (no xbest/fmin available)", iter_counter[]))
+            end
+        end
+    end
+)
+
+params_opt = xbest(result)
+final_sse  = fbest(result)
+A_CH, B_CH, C_CH, D_CH = params_opt
+
+println("\n✅ CMA-ES CH-only optimization successful!")
+@printf "Optimized CH parameters:\n"
+@printf "  A_CH = %.10f\n" A_CH
+@printf "  B_CH = %.10f\n" B_CH
+@printf "  C_CH = %.10f\n" C_CH
+@printf "  D_CH = %.10f\n" D_CH
+@printf "Final SSE = %.8e\n" final_sse

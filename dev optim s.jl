@@ -1,12 +1,11 @@
 using CMAEvolutionStrategy, Statistics, Random, DataFrames, CSV, Clapeyron, StaticArrays, StatsBase
 include("model development.jl")
-function make_bell_objective(models::Vector, datasets::Vector{DataFrame})
+function make_bell_objective(models::Vector, datasets::Vector{DataFrame}; limit::Int=0)
     function objective(x)
         # unpack optimization vector
         n_alpha = Dict(
             "CH3" => (x[1],	x[2],	x[3]),
             "CH2" => (x[4],	x[5],	x[6]),
-
         )
 
         tau_i = Dict(
@@ -23,18 +22,32 @@ function make_bell_objective(models::Vector, datasets::Vector{DataFrame})
 
         total_error = 0.0
 
+        # === Loop over each model/dataset pair ===
         for (model, data) in zip(models, datasets)
-            Pvals = data.p
-            Tvals = data.t
-            μ_exp = data.viscosity
+            npoints = nrow(data)
+
+            # --- Subsample if needed ---
+            if limit > 0 && npoints > limit
+                subset_idx = sample(1:npoints, limit; replace=false)
+                subset = data[subset_idx, :]
+            else
+                subset = data
+            end
+
+            Pvals = subset.p
+            Tvals = subset.t
+            μ_exp = subset.viscosity
 
             try
-                μ_pred = bell_lot_viscosity_opt_epsilon.(model, Pvals[:], Tvals[:]; params=params)
+                μ_pred = bell_lot_viscosity_opt_ogref.(model, Pvals[:], Tvals[:]; params=params)
+
                 if any(!isfinite, μ_pred)
                     total_error += 1e10
                     continue
                 end
+
                 total_error += sum(((μ_exp .- μ_pred) ./ μ_exp).^2) / length(Pvals)
+
             catch err
                 @warn "Error during evaluation" error=err
                 total_error += 1e10
@@ -47,18 +60,20 @@ function make_bell_objective(models::Vector, datasets::Vector{DataFrame})
 end
 
 function optimize_bell_parameters!(models, datasets;
+    limit::Int=0,
     lower = fill(0.0, 9),
     upper = fill(1.0, 9),
-    seed = 42, σ0 = 0.5, max_iters = 8000
+    seed = 42,
+     σ0 = 1.0, max_iters = 8000
 )
     Random.seed!(seed)
-    obj = make_bell_objective(models, datasets)
+    obj = make_bell_objective(models, datasets; limit=limit)
 
     # initial guess
     #x0 = [-0.0068188, -0.02899088, -1.6803e-9, -0.000505772, -0.019999, -9.996391e-10, 0.05499806, -0.014602705977361975]
 
-    x0 =   [-0.016248943,	-1.301165292,	-13.21531378, 2.93E-04,	-1.011917658,	-2.991386128, 0.0001, 0.00002, -7.17608578256157]
-
+    x0 =  [-0.005736064295840372, 3.3035558966216567, -9.949108171466614, -0.003482098937990341, 1.0230124247770518, -3.269146600001073, 1.4234261974321183, 0.035739755709452, 13.16452096627834]
+# at 0.1686
     println("Starting CMA-ES optimization with seed = $seed")
     println("Initial parameters: ", x0)
 
@@ -119,13 +134,16 @@ datasets = [load_experimental_data(p) for p in data_paths]
 # Run optimization
 
 # [-0.009906338133508082, -0.6770805839304224, -2.1715739702027115, 0.0010175814867223187, -0.9682046689892875, 0.32629202910983224, 0.5000000023041724, 0.5000000023292258, 0.5441397922288526, -0.2999999988321849]
+lower_bounds = [-1.0, -1.0, -20.0, -0.1, -1.0, -5.0, 0.0, -0.2, 0.0]
+upper_bounds = [0.0,  5.0,  0.0,  1.0,  5.0,  1.0, 1.5, 1.0, 20.0]
 res = optimize_bell_parameters!(
     models,
     datasets;
-    lower  = [-10.0, -15.0, -20.0, -0.1, -5.0, -5.0, 0.0, 0.0, -20.0],
-    upper  = [0.0, 0.0, 0.0, 1.0, 0.0,       1.0,    0.001, 0.001, 0.0],
+    limit = 200, 
+    lower  = lower_bounds,
+    upper  = upper_bounds,
     seed = 42,
-    σ0 = 1.0,
+    σ0 = 3.0,
     max_iters = 10000
 )
 
