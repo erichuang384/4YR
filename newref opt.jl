@@ -8,21 +8,22 @@ using Random
 # -----------------------------------
 # Define models and data files
 # -----------------------------------
-models = [
-    SAFTgammaMie(["Pentane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Hexane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Octane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Decane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Dodecane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Tridecane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Pentadecane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Hexadecane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Heptadecane"], idealmodel = WalkerIdeal)
+# models = [
+#     SAFTgammaMie(["Pentane"], idealmodel = WalkerIdeal),
+#     SAFTgammaMie(["Hexane"], idealmodel = WalkerIdeal),
+#     SAFTgammaMie(["Octane"], idealmodel = WalkerIdeal),
+#     SAFTgammaMie(["Decane"], idealmodel = WalkerIdeal),
+#     SAFTgammaMie(["Dodecane"], idealmodel = WalkerIdeal),
+#     SAFTgammaMie(["Tridecane"], idealmodel = WalkerIdeal),
+#     SAFTgammaMie(["Pentadecane"], idealmodel = WalkerIdeal),
+#     SAFTgammaMie(["Hexadecane"], idealmodel = WalkerIdeal),
+#     SAFTgammaMie(["Heptadecane"], idealmodel = WalkerIdeal)
 
- #   SAFTgammaMie(["Eicosane"], idealmodel = WalkerIdeal)
-]
+#  #   SAFTgammaMie(["Eicosane"], idealmodel = WalkerIdeal)
+# ]
 
 models = [
+    SAFTgammaMie(["Butane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Pentane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Hexane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Octane"], idealmodel = BasicIdeal),
@@ -31,13 +32,13 @@ models = [
     SAFTgammaMie(["Tridecane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Pentadecane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Hexadecane"], idealmodel = BasicIdeal),
-    SAFTgammaMie(["Heptadecane"], idealmodel = BasicIdeal)
-
- #   SAFTgammaMie(["Eicosane"], idealmodel = WalkerIdeal)
+    SAFTgammaMie(["Heptadecane"], idealmodel = BasicIdeal),
+    SAFTgammaMie(["Eicosane"], idealmodel = BasicIdeal)
 ]
 
 
 data_files = [
+    "Training DATA/Butane DETHERM.csv",
     "Training DATA/Pentane DETHERM.csv",
     "Training DATA/Hexane DETHERM.csv",
     "Training DATA/Octane DETHERM.csv",
@@ -46,8 +47,8 @@ data_files = [
     "Validation Data/Tridecane DETHERM.csv",
     "Validation Data/Pentadecane DETHERM.csv",
     "Training DATA/Hexadecane DETHERM.csv",
-    "Validation Data/Heptadecane DETHERM.csv"
- #   "Training DATA/n-eicosane.csv"
+    "Validation Data/Heptadecane DETHERM.csv",
+    "Training DATA/n-eicosane.csv"
 ]
 
 # -----------------------------------
@@ -164,6 +165,7 @@ function sse_group_contrib(params::AbstractVector{<:Real})
     end
     #A_CH3, B_CH3, C_CH3, A_CH2, B_CH2, C_CH2, gamma, D_CH3, D_CH2 = params
     A_CH3, B_CH3, C_CH3, A_CH2, B_CH2, C_CH2, gamma, D_CH3, D_CH2, m_1, m_2, m_3 = params
+    #A_CH3, B_CH3, C_CH3, A_CH2, B_CH2, C_CH2, gamma, D_i, m_1, m_2, m_3 = params
     total = 0.0
     for i in 1:length(models)
         z = data_z_list[i]
@@ -190,15 +192,15 @@ function sse_group_contrib(params::AbstractVector{<:Real})
         V = num_CH3 * S_CH3 * sigma_CH3^3 + num_CH2 * S_CH2 * sigma_CH2^3
         #n_g1 = A_CH3 * S_CH3 * sigma_CH3^3 * num_CH3 + A_CH2 * S_CH2 * sigma_CH2^3 * num_CH2
         #n_g1 = (A_CH3 * S_CH3 * sigma_CH3^3 * num_CH3 + A_CH2 * S_CH2 * sigma_CH2^3 * num_CH2) #/ (num_CH2+num_CH3)
-        n_g1 = A_vdw_opt(x_sk_model,A_CH3,A_CH2)
+        n_g1 = A_vdw_opt(models[i],A_CH3,A_CH2,0.0,0.0)
         n_g2 = (B_CH3 * S_CH3 * sigma_CH3^3 * num_CH3 + B_CH2 * S_CH2 * sigma_CH2^3 * num_CH2) / V^gamma
         #n_g2 = A_vdw(x_sk_model, B_CH3, B_CH2) #/ V ^ gamma
 
         #m = 0.379642 + 1.54226 * acentric_fact - 0.26992*acentric_fact^2
-        m = m_1 + m_2 * Mw_model + m_3 * Mw_model^2
+        m_T = m_1 + m_2 * Mw_model + m_3 * Mw_model^2
         #m = m_1 + m_2 * acentric_fact + m_3 * acentric_fact^2
 
-        n_g3 = (C_CH3 .* num_CH3 .+ C_CH2 .* num_CH2) .*  (1 .+ m .* sqrt.(T./T_C))
+        n_g3 = (C_CH3 .* num_CH3 .+ C_CH2 .* num_CH2) .*  (1 .+ m_T .* sqrt.(T./T_C))
         #n_g3 = (C_CH3 .* num_CH3 .+ C_CH2 .* num_CH2) .* s_id
         #n_g3 = A_vdw_opt(x_sk_model,C_CH3, C_CH2) .* s_id
         #n_g3 = (log.( A_vdw_opt(x_sk_model, C_CH3,C_CH2).* T ./ T_C))
@@ -227,17 +229,21 @@ end
 println("\nStarting CMA-ES optimization of group-contribution parameters...")
 
 # Initial guess and bounds
-x0 = [-0.0152941746, 0.26365184, -0.933877108, -0.0000822187, 0.275395668, -0.2219383, 0.41722646, 0.1693155]
-x0 = [0.22311992203010386, 0.01892763056088764, -0.09968670672385233, -1.357797583343831, 0.031874217787294, -0.001683690848038567, 0.3175076261986114, 0.00023421863834581987, 0.00014377419901436968, -0.9927325409136291, 7.98070549196157, 7.09279125158157]
+x0 = [0.07499014575254812, 0.022952089265885545, -0.07399881535579876, -1.1555094778528896, 0.03046889724552433, -0.0015829542219616076, 0.33134385697591257, 0.00020404016733679533, -0.89664645425576, 8.430884960547536, 5.5927245874714435]
+x0 = [0.19559028955933497, 0.01891278652141742, -0.0676141053733902, -1.2655624213727277, 0.04579084462791991, -0.004667007395279716, 0.3805297833158242, 0.00017994450415668582, 0.00013889230918045332, -1.1230042615433207, 3.3689002130697854, 0.7584844975125721]
+# For no sf on z
+x0 = [-0.06046671299667853, 0.3737836229207754, -7.098706802783836e-5, -0.6908323087652994, 0.27971954480593647, 0.00011222552630781913, 0.9988512642395981, 1.539793408904002e-5, -1.954697661169505e-6, -17.706835766026753, 32.73603031929364, 23.688913248745667]
+# For whole z division
+x0 = [0.6145360292355571, -8.559333420885814, 0.10300016800791054, -2.125091141241104, 23.487200356606454, -0.09629694834867396, 1.4888962872895215, -0.00018615415970691732, 0.0003568669321560236, -0.6825669125011607, 12.533744035717795, 15.510758387701088]
 lower = nothing #[-1.0, -5.0, -5.0, -5.0, -5.0, -5.0, -1.0, -10.0]
 upper = nothing #[1.0, 5.0,   5.0, 5.0, 5.0,   5.0,   1.0, 10.0]
 
 # CMA-ES hyperparameters
-σ0 = 0.001
-seed = 42
+σ0 = 0.1
+seed = 142
 Random.seed!(seed)
 #λ = 4 + floor(Int, 3 * log(length(x0)))
-stagnation_iters = 4000
+stagnation_iters = 5000
 iter_counter = Ref(0)
 
 result = minimize(
@@ -251,7 +257,7 @@ result = minimize(
     #popsize = λ,
     stagnation = stagnation_iters,
     maxiter = 10000,
-    ftol = 1e-10,
+    ftol = 1e-15,
     callback = (opt, x, fx, ranks) -> begin
         iter_counter[] += 1
         if iter_counter[] % 50 == 0

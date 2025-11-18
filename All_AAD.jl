@@ -2,8 +2,23 @@ using Clapeyron, Plots, LinearAlgebra, CSV, DataFrames, LaTeXStrings, StaticArra
 #include("model development.jl")
 
 models = [
+    SAFTgammaMie(["Butane"]),
+	SAFTgammaMie(["Pentane"]),
+	SAFTgammaMie(["Hexane"]),
+	SAFTgammaMie(["Heptane"]),
+	SAFTgammaMie(["Octane"]),
+	SAFTgammaMie(["Nonane"]),
+	SAFTgammaMie(["Decane"]),
+	SAFTgammaMie(["Undecane"]),
+	SAFTgammaMie(["Dodecane"]),
+	SAFTgammaMie(["Tridecane"]),
+	SAFTgammaMie(["Tetradecane"]),
+	SAFTgammaMie(["Pentadecane"]),
+	SAFTgammaMie(["Hexadecane"]),
+	SAFTgammaMie(["Heptadecane"]),
+	SAFTgammaMie(["n-eicosane"]),
     SAFTgammaMie(["2,6,10,14-tetramethylpentadecane"]),
-#    SAFTgammaMie(["2-methylpropane"]),
+    SAFTgammaMie(["2-methylpropane"]),
     SAFTgammaMie(["2-methylbutane"]),
     SAFTgammaMie(["2-methylpentane"]),
 #    SAFTgammaMie(["9-octylheptadecane"]), # very questionable data
@@ -25,8 +40,23 @@ models = [
 
 
 data_paths = [
+    "Training DATA/Butane DETHERM.csv",
+    "Training DATA/Pentane DETHERM.csv",
+    "Training DATA/Hexane DETHERM.csv",
+    "Training Data/Heptane DETHERM.csv",
+    "Training DATA/Octane DETHERM.csv",
+    "Validation Data/Nonane DETHERM.csv",
+    "Training DATA/Decane DETHERM.csv",
+    "Validation Data/Undecane DETHERM.csv",
+    "Training DATA/Dodecane DETHERM.csv",
+    "Validation Data/Tridecane DETHERM.csv",
+    "Training Data/Tetradecane DETHERM.csv",
+    "Validation Data/Pentadecane DETHERM.csv",
+    "Training DATA/Hexadecane DETHERM.csv",
+    "Validation Data/Heptadecane DETHERM.csv",
+    "Training DATA/n-eicosane.csv",
     "Training DATA/Branched Alkane/2,6,10,14-tetramethylpentadecane.csv",
-#   "Training DATA/Branched Alkane/2-methylpropane.csv",
+   "Training DATA/Branched Alkane/2-methylpropane.csv",
     "Training DATA/Branched Alkane/2-methylbutane.csv",
     "Training DATA/Branched Alkane/2-methylpentane.csv",
 #    "Training DATA/Branched Alkane/9-octylheptadecane.csv",
@@ -46,6 +76,8 @@ data_paths = [
     
 ]
 
+substances = [model.groups.components[1] for model in models]
+
 exp_data = [load_experimental_data(p) for p in data_paths]
 
 AAD = zeros(length(models))
@@ -54,7 +86,7 @@ for i in 1:length(models)
     T_exp = exp_data[i][:,2]
     n_exp = exp_data[i][:,3]
     P_exp = exp_data[i][:,1] 
-    n_calc = bell_lot_test_ethane.(models[i],P_exp,T_exp) 
+    n_calc = bell_lot_test.(models[i],P_exp,T_exp) 
 
     AAD[i] = sum(abs.( (n_exp .- n_calc)./n_exp))/length(P_exp)
 end
@@ -64,43 +96,27 @@ maximum(AAD)
 mean(AAD[2:end-1])
 maximum(AAD[2:end-1])
 
+df = DataFrame(Substance = String[], Temperature_Range = String[], Pressure_Range = String[], Num_Data_Points = Int[], AAD = Float64[]
+, Weighting = Float64[]
+)
 
-#labels = ["2,6,10,14-tetramethylpentadecane", "Isobutane", "Isopentane", "Isohexane", "Squalane"]
-labels = ["2,2,4-trimethylpentane", "2,6,10,14-tetramethylpentadecane", "Isobutane", "Isopentane", "Isohexane", "Heptamethylnonane", "Squalane"]
-p_all = []  # store plots
-#=
+    
+weightings = [0.8, 1.0,1.0,0.0, 1.0,0.0, 1.0,1.0,1.0,1.0, 0.0, 1.0, 1.0, 1.0, 0.8,
+0.15, 0.35, 0.45, 0.55, 0.5, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3 , 0.3 , 0.3, 0.3, 0.4, 0.1]
 for i in 1:length(models)
-    model = models[i]
-    data = exp_data[i]
-
-    P_exp_plot = data[:,1]
-    T_exp_plot = data[:,2]
-    n_exp_plot = data[:,3]
-
-    n_calc = bell_lot_viscosity.(model, P_exp_plot, T_exp_plot)
-    AAD_plot = ((n_exp_plot .- n_calc) ./ n_exp_plot) .* 100
-
-    res_ent = entropy_res.(model, P_exp_plot, T_exp_plot) ./ (-Rgas())
-
-    p = scatter(
-        res_ent, AAD_plot,
-        xlabel = L"s^+",
-        ylabel = L"AD (\%)",
-        title = "AD% vs Residual Entropy for $(labels[i])",
-        legend = false,
-        markersize = 5,
-        color = :blue
-    )
-
-    push!(p_all, p)
+    substance = substances[i]
+    T_exp = exp_data[i][:,2]
+    P_exp = exp_data[i][:,1]
+    t_min = minimum(T_exp)
+    t_max = maximum(T_exp)
+    p_min = minimum(P_exp)
+    p_max = maximum(P_exp)
+    t_range = "$t_min - $t_max"
+    p_range = "$p_min - $p_max"
+    num_points = length(P_exp)
+    aad = AAD[i]
+   Weighting = weightings[i]
+    push!(df, (substance, t_range, p_range, num_points, aad, Weighting))
 end
-p_all[1]
-p_all[2]
-p_all[3]
-p_all[4]
-=#
 
-
-#savefig(p_all[1],"AAD vs res ent Octane")
-#savefig(p_all[5],"AD vs res ent Dodecane")
-
+CSV.write("ALL AAD_weighting.csv", df)

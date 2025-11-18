@@ -19,11 +19,11 @@ ln_n_red_3_og = (n_g_3_og[1] .* (s_xi) .^ n_exp[1] + n_g_3_og[2] .* (s_xi) .^ n_
 #n_red_3_og = exp.(n_g_3_og[1] .* (s_xi) .^ (1.8) + n_g_3_og[2] .* (s_xi) .^ (2.4) + n_g_3_og[3] .* (s_xi) .^ (2.8)) .- 1.0
 
 #exp_dodecane = CSV.read("Training Data/ethane.csv", DataFrame)
-exp_dodecane = CSV.read("Training Data/Heptane DETHERM.csv", DataFrame)
+exp_dodecane = CSV.read("Training Data/Hexane DETHERM.csv", DataFrame)
 #exp_dodecane = CSV.read("Training DATA/Branched Alkane/2,6,10,14-tetramethylpentadecane.csv", DataFrame)
 #exp_dodecane = CSV.read("Training DATA/Branched Alkane/squalane.csv", DataFrame)
 #exp_dodecane = CSV.read("Validation DATA/Heptadecane DETHERM.csv", DataFrame)
-model = SAFTgammaMie(["Heptane"], idealmodel = BasicIdeal)
+model = SAFTgammaMie(["Hexane"], idealmodel = BasicIdeal)
 
 function reduced_visc(model::EoSModel, P, T, visc)
 
@@ -74,8 +74,9 @@ epsilon = ϵ_OFE(model)
 crit_point = crit_pure(model)
 s_crit = entropy_res(model, crit_point[2], crit_point[1])
 s_ideal = (Clapeyron.entropy.(model, P, T).- entropy_res.(model,P,T))
+s_resid = entropy_res.(model, P, T)
 
-x_axis_1 = -entropy_res.(model, P, T)./ (s_ideal) #.+  1.0 .* log.(entropy_res.(model, P, T)./ (s_crit)) 
+x_axis_1 = -s_resid ./ (Rgas() .* ( 1 .- 0.161 .* sqrt.(T./crit_point[1])))
 #x_axis_1 = entropy_res.(model, P, T)./s_crit
 
 tot_sf = sum(model.params.shapefactor.values .* model.groups.n_groups[1])
@@ -92,11 +93,11 @@ ln_n_red_3 = n_g_3[1] .* (s_xi) .^ exponents[1] + n_g_3[2] .* (s_xi) .^ exponent
 =#
 plot1 = scatter(x_axis, y_axis,
 	grid = false,
-	xlabel = L"s^+/\ln(T/K)",
-	ylabel = L"\ln(\eta_\textrm{res}^+ +1)",
+	xlabel = L"s^+ \times (1 + m \sqrt{(T/ T_C)})",
+	ylabel = L"\ln(\eta_\textrm{reduced} +1)",
 	xguidefontsize = 15.0,
 	yguidefontsize = 15.0,
-	title = "Heptadecane Dimensionless Experimental Data",
+	title = "Hexane Dimensionless Experimental Data",
 	lw = :3,
 	marker = :diamond,
 	label = false,

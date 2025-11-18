@@ -1,7 +1,5 @@
 using LinearAlgebra, StaticArrays
-#csv_phase("Training DATA/Branched Alkane/2,2,4-trimethylpentane.csv",SAFTgammaMie(["2,2,4-trimethylpentane"]),true)
 
-#model = SAFTgammaMie(["Hexane"], idealmodel = WalkerIdeal)
 function entropy_ideal(model::EoSModel, p , T , z = StaticArrays.SA[1.0])
     s_id = Clapeyron.entropy(model, p, T, z) - entropy_res(model, p, T, z)
     return s_id
@@ -20,7 +18,6 @@ function global_crit_dict(models)
     return 
 end
 
-
 function entropy_res_crit(model::EoSModel)
     """
     Compute residual entropy at the critical point,
@@ -36,49 +33,6 @@ function entropy_res_crit(model::EoSModel)
     return res_crit_entr
 end
 
-function gamma(model,p,T; z = StaticArrays.SA[1.0])
-    betaT = Clapeyron.VT.isothermal_compressibility(model, p, T, z) # 1/Pa
-    betaS = Clapeyron.VT.isentropic_compressibility(model, p, T, z) # 1/Pa
-    alphaV = isobaric_expansivity(model, p, T, z) # 1/K
-    Cv = isochoric_heat_capacity(model,p,T,z) # J/k mol
-    Cp = isobaric_heat_capacity(model,p,T,z) # J/k mol
-    u = speed_of_sound(model, p, T, z)      # m/s
-    rho = molar_density(model, p, T, z)     # mol/ m^3
-    #return alphaV * betaT / (Cv * rho)
-    #return alphaV * betaS / (Cp * rho)
-    return alphaV * u^2/ Cp
-end
-#gamma(model,1e5,300)
-#=
-function ∂f∂V(model,V,T,z::AbstractVector)
-    f(∂V) = a_res(model,∂V,T,z)
-    ∂aᵣ∂V = Solvers.derivative(f,V)
-    sum(z)*Rgas(model)*T*(∂aᵣ∂V - 1/V)
-end
-using ForwardDiff
-
-function ∂T∂V(model,V,T,z::AbstractVector)
-    ∂T∂V = ForwardDiff.derivative(T,V)
-    return ∂T∂V
-end
-model = SAFTgammaMie(["Hexadecane"])
-
-v = volume(model,1e8,300)
-∂T∂V(model, v, 300.0)
-
-
-function γVT(model,V,T,z::AbstractVector=SA[1.0])
-    # partial derivative (∂P/∂T)_V
-    f_T(∂T) = pressure(model,V,∂T,z)
-    ∂P∂T = Solvers.derivative(f_T,T)
-
-    # heat capacity Cv(T,V)
-    Cv = isobar(model,V,T,z)
-
-    # compute gamma
-    return (V / Cv) * ∂P∂T
-end
-=#
 function csv_phase(csv_path::String, model, remove_vapour::Bool=false)
     # Read CSV
     df = CSV.read(csv_path, DataFrame)
@@ -261,11 +215,11 @@ function load_experimental_data(path::AbstractString)
     return df
 end
 
-function A_vdw_opt(model::EoSModel, A_CH3, A_CH2,A_CH)
+function A_vdw_opt(model::EoSModel, A_CH3, A_CH2,A_CH, A_C)
     """
     epsilon pure fluid equivalent
     """
-    A_i = Dict("CH3" => A_CH3, "CH2" => A_CH2,"CH" =>A_CH)
+    A_i = Dict("CH3" => A_CH3, "CH2" => A_CH2,"CH" =>A_CH, "C" =>A_C)
     #x_sk_order = ["CH3", "CH2",]
     xₛₖ = x_sk(model)
     x_sk_order = model.groups.flattenedgroups
@@ -286,10 +240,7 @@ function A_vdw_opt(model::EoSModel, A_CH3, A_CH2,A_CH)
     #tau_ofe = sum(tau_vec .* x_vec)
     return A_ofe
 end
-A_vdw_opt(x_sk(model), 0.5, 0.2,0.2)
-A_vdw_opt(model,0.5,0.2,0.2)
-A_i = Dict("CH3" => 0.5, "CH2" => 0.2)
-A_vdw(model,A_i)
+
 function A_vdw(model::EoSModel, A_i)
     """
     epsilon pure fluid equivalent
@@ -314,4 +265,3 @@ function A_vdw(model::EoSModel, A_i)
     #tau_ofe = sum(tau_vec .* x_vec)
     return A_ofe
 end
-A_vdw(x_sk(models[1]),0.5,0.2)

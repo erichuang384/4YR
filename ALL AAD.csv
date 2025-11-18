@@ -1,0 +1,32 @@
+Substance,Temperature Range/k,Pressure Range/Pa,Number of Data Points,AAD%,,,,,,,
+Butane,140.0 - 443.0,6.89e5  – 6.92e7,347,4.60,,,Substance,Temperature Range/k,Pressure Range/Pa,Number of Data Points,AAD%
+Pentane,293.21 - 465.15,9.81e4  – 7.03e7,600,1.73,,,"2,6,10,14-tetramethylpentadecane",298.15 - 363.15,1.00e5 – 1.00e8,30,18.69
+Hexane,178.15 - 498.15,1.00e5 – 6.59e7,367,2.84,,,2-methylbutane,288.15 - 453.15,9.81e4 – 5.88e7,154,2.25
+Heptane,290.65 - 540.15,1.00e5 – 1.40e8,290,2.83,,,2-methylpentane,283.14 - 343.17,1.00e6 – 3.00e7,49,4.50
+Octane,296.15 - 583.1,9.81e4 – 2.53e8,453,2.84,,,squalane,303.15 - 473.07,1.00e5 – 2.02e8,170,5.06
+Nonane,293.15 - 463.15,9.80e4 – 2.45e8,289,3.20,,,"3,5-dimethylheptane",283.15 - 363.15,1.00e5 – 1.00e5,9,6.71
+Decane,292.15 - 598.5,1.00e5 – 5.52e7,358,3.06,,,2-methyloctane,283.15 - 373.15,1.00e5 – 1.00e5,10,3.58
+Undecane,288.7034 - 520.15,1.01e5 – 6.24e7,231,1.80,,,4-methyloctane,283.15 - 373.15,1.00e5 – 1.00e5,10,10.82
+Dodecane,293.15 - 693.2,1.00e5 – 1.40e8,354,1.99,,,"3,6-dimethyloctane",283.15 - 373.15,1.00e5 – 1.00e5,10,2.57
+Tridecane,293.15 - 492.65,9.80e4 – 2.45e8,250,2.85,,,2-methylnonane,283.15 - 373.15,1.00e5 – 1.00e5,10,2.74
+Tetradecane,298.15 - 524.45,9.80e4 – 6.00e7,167,3.50,,,2-methyldecane,283.15 - 373.15,1.00e5 – 1.00e5,10,1.98
+Pentadecane,293.15 - 515.75,9.80e4 – 3.20e8,204,2.68,,,3-methylundecane,283.15 - 373.15,1.00e5 – 1.00e5,10,3.26
+Hexadecane,298.36 - 533.7,1.00e5 – 2.27e8,241,4.42,,,2-methylpentadecane,283.15 - 373.15,1.00e5 – 1.00e5,10,0.99
+Heptadecane,303.26 - 358.19,1.30e5 – 6.91e7,582,1.45,,,7-methylhexadecane,283.15 - 373.15,1.00e5 – 1.00e5,10,8.77
+n-eicosane,325.8 - 533.8,9.80e4 – 2.43e8,61,3.66,2.90,,"2,2,4-trimethylpentane",197.93 - 548.15,9.81e4 – 1.40e8,345,3.85
+"2,6,10,14-tetramethylpentadecane",298.15 - 363.15,1.00e5 – 1.00e8,30,18.69,,,heptamethylnonane,293.15 - 453.15,1.00e5 – 1.95e8,90,8.00
+2-methylbutane,288.15 - 453.15,9.81e4 – 5.88e7,154,2.25,,,"2,2,4-trimethylhexane",293.15 - 293.15,1.00e5 – 9.00e8,13,16.01
+2-methylpentane,283.14 - 343.17,1.00e6 – 3.00e7,49,4.50,,,,,,,
+squalane,303.15 - 473.07,1.00e5 – 2.02e8,170,5.06,,,,,,,
+"3,5-dimethylheptane",283.15 - 363.15,1.00e5 – 1.00e5,9,6.71,,,Substance,Temperature Range/k,Pressure Range/Pa,Number of Data Points,AAD%
+2-methyloctane,283.15 - 373.15,1.00e5 – 1.00e5,10,3.58,,,"2,6,10,14-tetramethylpentadecane",298.15 - 363.15,1.00e5 – 1.00e8,30,18.69
+4-methyloctane,283.15 - 373.15,1.00e5 – 1.00e5,10,10.82,,,"2,2,4-trimethylhexane",293.15 - 293.15,1.00e5 – 9.00e8,13,16.01
+"3,6-dimethyloctane",283.15 - 373.15,1.00e5 – 1.00e5,10,2.57,,,4-methyloctane,283.15 - 373.15,1.00e5 – 1.00e5,10,10.82
+2-methylnonane,283.15 - 373.15,1.00e5 – 1.00e5,10,2.74,,,2-methyloctane,283.15 - 373.15,1.00e5 – 1.00e5,10,3.58
+2-methyldecane,283.15 - 373.15,1.00e5 – 1.00e5,10,1.98,,,,,,,
+3-methylundecane,283.15 - 373.15,1.00e5 – 1.00e5,10,3.26,,,,,,,
+2-methylpentadecane,283.15 - 373.15,1.00e5 – 1.00e5,10,0.99,,,,,,,
+7-methylhexadecane,283.15 - 373.15,1.00e5 – 1.00e5,10,8.77,,,,,,,
+"2,2,4-trimethylpentane",197.93 - 548.15,9.81e4 – 1.40e8,345,3.85,,,,,,,
+heptamethylnonane,293.15 - 453.15,1.00e5 – 1.95e8,90,8.00,,,,,,,
+"2,2,4-trimethylhexane",293.15 - 293.15,1.00e5 – 9.00e8,13,16.01,6.24,,,,,,

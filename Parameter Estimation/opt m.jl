@@ -8,19 +8,6 @@ using Random
 # -----------------------------------
 # Define models and data files
 # -----------------------------------
-models = [
-    SAFTgammaMie(["Pentane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Hexane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Octane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Decane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Dodecane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Tridecane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Pentadecane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Hexadecane"], idealmodel = WalkerIdeal),
-    SAFTgammaMie(["Heptadecane"], idealmodel = WalkerIdeal)
-
- #   SAFTgammaMie(["Eicosane"], idealmodel = WalkerIdeal)
-]
 
 models = [
     SAFTgammaMie(["Pentane"], idealmodel = BasicIdeal),
@@ -161,8 +148,7 @@ println("\nStarting CMA-ES optimization of per-model m parameters...")
 # Fixed group-contribution parameters (from your provided optimized set)
 # ---------------------------------------------------------------------
 
-A_CH3, B_CH3, C_CH3, A_CH2, B_CH2, C_CH2, gamma_i, D_CH3, D_CH2 = 0.5228313727462552, 0.0020034606250277187, 0.023247265149178208, -1.412098930182651, 0.031223158922453472, -0.019459668181730262, 0.3006410500841957, -0.00012220134519441977, 0.00021878335344363025
-
+A_CH3, B_CH3, C_CH3, A_CH2, B_CH2, C_CH2, gamma_i, D_CH3, D_CH2 = 0.14544200778907007, 0.010683439643496976, -0.06148080798139255, -1.1927784860733681, 0.011458247757004004, -0.008458302429596044, 0.16499191915814165, 0.000157392327889979, 0.00016724013588380074
 # ---------------------------------------------------------------------
 # Objective: optimize only m (one value per model)
 # ---------------------------------------------------------------------
@@ -170,7 +156,7 @@ function sse_m_only(m_vec::AbstractVector{<:Real})
     if length(m_vec) != length(models)
         return 1e20
     end
-    A_CH3, B_CH3, C_CH3, A_CH2, B_CH2, C_CH2, gamma_i, D_CH3, D_CH2 = 0.5228313727462552, 0.0020034606250277187, 0.023247265149178208, -1.412098930182651, 0.031223158922453472, -0.019459668181730262, 0.3006410500841957, -0.00012220134519441977, 0.00021878335344363025
+    A_CH3, B_CH3, C_CH3, A_CH2, B_CH2, C_CH2, gamma_i, D_CH3, D_CH2 = 0.14544200778907007, 0.010683439643496976, -0.06148080798139255, -1.1927784860733681, 0.011458247757004004, -0.008458302429596044, 0.16499191915814165, 0.000157392327889979, 0.00016724013588380074
 
     total = 0.0
     for i in 1:length(models)
@@ -195,7 +181,7 @@ function sse_m_only(m_vec::AbstractVector{<:Real})
         V = num_CH3 * S_CH3 * sigma_CH3^3 + num_CH2 * S_CH2 * sigma_CH2^3
 
         # Use SAME DEFINITIONS in objective and plots
-        n_g1 = A_vdw_opt(x_sk_model, A_CH3, A_CH2)
+        n_g1 = A_vdw_opt(models[i], A_CH3, A_CH2, 0.0, 0.0)
 
         n_g2 = (B_CH3 * S_CH3 * sigma_CH3^3 * num_CH3 +
                 B_CH2 * S_CH2 * sigma_CH2^3 * num_CH2) / V^gamma_i
@@ -307,13 +293,13 @@ for i in eachindex(models)
 
     V = num_CH3 * S_CH3 * sigma_CH3^3 + num_CH2 * S_CH2 * sigma_CH2^3
 
-    n_g1 = A_vdw_opt(x_sk_model, A_CH3, A_CH2)
+    n_g1 = A_vdw_opt(x_sk_model, A_CH3, A_CH2, 0.0)
 
     n_g2 = (B_CH3 * S_CH3 * sigma_CH3^3 * num_CH3 +
             B_CH2 * S_CH2 * sigma_CH2^3 * num_CH2) / V^gamma_fix
 
     m_i = m_opt[i]
-    n_g3 = (C_CH3 * num_CH3 + C_CH2 * num_CH2).* (1.+ sqrt.(m_i.* T./ T_C))
+    n_g3 = (C_CH3 * num_CH3 + C_CH2 * num_CH2).* (1 .+ sqrt.(m_i.* T./ T_C))
 
     D = (D_CH3 * num_CH3 * S_CH3 * sigma_CH3^3 +
          D_CH2 * num_CH2 * S_CH2 * sigma_CH2^3)
