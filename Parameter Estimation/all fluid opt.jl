@@ -9,7 +9,7 @@ using Random
 # Models and data (branched alkanes)
 # -----------------------------------
 models = [
-    SAFTgammaMie(["Ethane"]),
+  #  SAFTgammaMie(["Ethane"]),
     SAFTgammaMie(["Butane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Pentane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Hexane"], idealmodel = BasicIdeal),
@@ -43,7 +43,7 @@ models = [
 
 
 data_files = [
-    "Training DATA/ethane.csv",
+   # "Training DATA/ethane.csv",
     "Training DATA/Butane DETHERM.csv",
     "Training DATA/Pentane DETHERM.csv",
     "Training DATA/Hexane DETHERM.csv",
@@ -74,7 +74,7 @@ data_files = [
     "Training DATA/Branched Alkane/2,2,4,4,6,8,8-heptamethylnonane.csv",
     "Training DATA/Branched Alkane/2,2,4-trimethylhexane.csv"
 ]
-weightings = [0.8,0.8, 1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0, 0.8,
+weightings = [0.8, 1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0, 0.8,
 0.15, 0.35, 0.45, 0.55, 0.5, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3 , 0.3 , 0.3, 0.3, 0.4, 0.1]
 # -----------------------------------
 # Reduced viscosity calculation for group-contribution model
@@ -110,6 +110,7 @@ data_T_list    = Vector{Vector{Float64}}(undef, length(models))  # masked T alig
 crit_pure_list = Vector{Float64}(undef, length(models))
 x_sk_list      = Vector{Vector{Float64}}(undef, length(models))
 Mw_list        = Vector{Float64}(undef, length(models))
+m_gc_list       = Vector{Float64}(undef, length(models))
 
 # Group counts and parameters
 ch3_count_list    = Vector{Float64}(undef, length(models))
@@ -180,6 +181,9 @@ for (i, (model, file)) in enumerate(zip(models, data_files))
         sigma_c_list[i]     = i_c  === nothing ? 0.0 : σdiag[i_c]*1e10   # Å
         acentric_factor_list[i] = acentric_factor(model)
 
+
+        m_gc_list[i]        = sum(ng)
+
         total_points[] += length(data_z_list[i])
     catch err
         @warn "Skipping invalid dataset" file error=err
@@ -213,16 +217,10 @@ end
 # Fixed constants from your 12-parameter optimization (CH3/CH2 set)
 # [A_CH3, B_CH3, C_CH3, A_CH2, B_CH2, C_CH2, gamma, D_CH3, D_CH2, m1, m2, m3]
 # ------------------------------------------------------------
-A_CH3_0, B_CH3_0, C_CH3_0,
-A_CH2_0, B_CH2_0, C_CH2_0,
-gamma_fix, D_CH3_0, D_CH2_0,
-m1_fix, m2_fix, m3_fix = (0.30126178216770166, 0.0007788967464115319, 0.0005513006602744074, -0.9798542060305091, 0.10758207652078508, -0.00038941109087152806, -16.278980895581384, 1.28251871539008, -0.00451434110629603, 0.5553036756484334, 2.50960754694707e-5, 9.737729794549607e-5, 0.001976528231014786, 72.7956740489339, -154.02966967588176, 198.71869937897432)
 
-A_CH3_0, B_CH3_0, C_CH3_0,
-A_CH2_0, B_CH2_0, C_CH2_0,
-gamma_fix, D_i,
-m1_fix, m2_fix, m3_fix = (0.1996694035404919, 0.013163399618677435, -0.0395093022663388, -1.1712339187550833, 0.025427903131912948, -0.006610385377581092, 0.2946194908647525, 0.003918383017106727, -1.3580945763938599, 4.958547241103466, -0.662141126516273)
-
+# for using mgc in tau
+x0 = [0.3331146804411593, 0.004008516939816172, -7.200729416054543e-5, -0.8790852726537773, 0.007301853141179978, 3.548541125552805e-5, 
+-6.54349752948493, 0.02691391753786118, 0.00020523872873219124, -2.672989576306306, 5.156256391072562e-6, 9.079965247259052e-5, 0.13414255828609212, 1.369922923059573e-5, 0.000101750454318113, 0.0017891590557210708, 0.003178772122537697, -0.0, -27.23026925611101, 0.3356077557831271]
 # ------------------------------------------------------------
 # Initial guess for CH parameters [A_CH, B_CH, C_CH, D_CH]
 # (neutral average from CH3/CH2 constants)
@@ -293,6 +291,8 @@ function sse_all(params::AbstractVector{<:Real})
         Tc  = crit_pure_list[i]
         xsk = x_sk_list[i]
         Mw  = Mw_list[i]
+        m_gc = m_gc_list[i]
+        acentric_fact = acentric_factor_list[i]
 
         # Volumes
         V_ch3 = ch3 * S_ch3 * sigma_ch3
@@ -313,9 +313,11 @@ function sse_all(params::AbstractVector{<:Real})
         #n_g2     = n_g2_num / V_tot^gamma_fix
 
         #acentric_fact = acentric_factor(models[i])
-        #m_i  = m1_fix + m2_fix*acentric_fact + m3_fix*acentric_fact^2
+        m_i  = m1_fix * 0 + m2_fix*acentric_fact + m3_fix*acentric_fact^2
 
-        m_i  = m_1 + m_2*Mw + m_3*Mw^2
+        #m_i  = m_1 + m_2*Mw + m_3*Mw^2
+
+        #m_i  = m_1 + m_2*m_gc + m_3*m_gc^2
 
         n_g3 = (C_CH3 * ch3 + C_CH2 * ch2 + C_CH * ch + C_C * c).* (1 .+ m_i.* sqrt.(T./ Tc))
 
@@ -345,8 +347,8 @@ end
 # ------------------------------------------------------------
 println("\nStarting CMA-ES optimization of CH parameters (A_CH, B_CH, C_CH, D_CH) on branched alkanes...")
 
-σ0 = 0.001
-seed = 42
+σ0 = 0.01
+seed = 142
 Random.seed!(seed)
 stagnation_iters = 20000
 iter_counter = Ref(0)
@@ -358,7 +360,7 @@ result = minimize(
     seed = seed,
     verbosity = 2,
     stagnation = stagnation_iters,
-    maxiter = 100000,
+    maxiter = 200000,
     ftol = 1e-15,
     callback = (opt, x, fx, ranks) -> begin
         iter_counter[] += 1

@@ -20,10 +20,13 @@ ln_n_red_3_og = (n_g_3_og[1] .* (s_xi) .^ n_exp[1] + n_g_3_og[2] .* (s_xi) .^ n_
 
 #exp_dodecane = CSV.read("Training Data/ethane.csv", DataFrame)
 exp_dodecane = CSV.read("Training Data/Hexane DETHERM.csv", DataFrame)
+#exp_dodecane = CSV.read("Training DATA/water_nist.csv", DataFrame)
 #exp_dodecane = CSV.read("Training DATA/Branched Alkane/2,6,10,14-tetramethylpentadecane.csv", DataFrame)
 #exp_dodecane = CSV.read("Training DATA/Branched Alkane/squalane.csv", DataFrame)
 #exp_dodecane = CSV.read("Validation DATA/Heptadecane DETHERM.csv", DataFrame)
 model = SAFTgammaMie(["Hexane"], idealmodel = BasicIdeal)
+#model = SAFTgammaMie(["Water"], idealmodel = WalkerIdeal)
+
 
 function reduced_visc(model::EoSModel, P, T, visc)
 
@@ -37,7 +40,7 @@ function reduced_visc(model::EoSModel, P, T, visc)
 
 	crit_point = crit_pure(model)
 	s_crit = entropy_res(model, crit_point[2], crit_point[1])
-	s_red = -s_res/s_id# + 1.0 * log(s_res/s_crit)
+	s_red = -s_res/R # + 1.0 * log(s_res/s_crit)
 	#s_red = s_res/s_crit
 
 	epsilon_ofe = ϵ_OFE(model)
@@ -53,7 +56,7 @@ function reduced_visc(model::EoSModel, P, T, visc)
 	Mw = Clapeyron.molecular_weight(model)
 	m = Mw / N_A
 
-	n_reduced = (visc - visc_CE)  ./ ((ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) #* ((s_red) .^ (2 / 3))
+	n_reduced = (visc - visc_CE)  ./ ((ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)) * ((s_red) .^ (2 / 3))
 	#n_reduced = (visc - visc_CE) *((s_red) .^ (2 / 3))
 	return n_reduced
 end
@@ -64,7 +67,7 @@ visc_exp = exp_dodecane[:, 3]
 
 eta_red = reduced_visc.(model, P, T, visc_exp)
 
-y_axis = log.(eta_red .+ 1.0)
+y_axis = log.(eta_red .+ 5.0)
 num_groups = model.groups.n_groups[1]
 xi = 1 # 0.4085265 * num_groups[1] + 0.0383325 * num_groups[2]
 
@@ -76,7 +79,7 @@ s_crit = entropy_res(model, crit_point[2], crit_point[1])
 s_ideal = (Clapeyron.entropy.(model, P, T).- entropy_res.(model,P,T))
 s_resid = entropy_res.(model, P, T)
 
-x_axis_1 = -s_resid ./ (Rgas() .* ( 1 .- 0.161 .* sqrt.(T./crit_point[1])))
+x_axis_1 = -s_resid ./ (Rgas()) .* ( 1 .+ 0.161 .* sqrt.(T./crit_point[1]))
 #x_axis_1 = entropy_res.(model, P, T)./s_crit
 
 tot_sf = sum(model.params.shapefactor.values .* model.groups.n_groups[1])

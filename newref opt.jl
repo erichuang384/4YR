@@ -4,7 +4,7 @@ using Plots
 using Printf, LaTeXStrings, Statistics
 using CMAEvolutionStrategy
 using Random
-
+include("dev partial.jl")
 # -----------------------------------
 # Define models and data files
 # -----------------------------------
@@ -30,11 +30,18 @@ models = [
     SAFTgammaMie(["Decane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Dodecane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Tridecane"], idealmodel = BasicIdeal),
-    SAFTgammaMie(["Pentadecane"], idealmodel = BasicIdeal),
+   # SAFTgammaMie(["Pentadecane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Hexadecane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Heptadecane"], idealmodel = BasicIdeal),
     SAFTgammaMie(["Eicosane"], idealmodel = BasicIdeal)
 ]
+
+crit_point_list = crit_pure.(models)
+crit_entropy_list = zeros(length(models))
+for i in 1:length(models)
+    crit_entropy_list[i] = entropy_res(models[i], crit_point_list[i][2],crit_point_list[i][1])
+end
+res_crit_entropy_list = -crit_entropy_list ./ Rgas()
 
 
 data_files = [
@@ -57,11 +64,11 @@ data_files = [
 function reduced_visc(model::EoSModel, P, T, visc)
     visc_CE = IB_CE(model, T)
     s_res = entropy_res(model, P, T)
-    s_id  = Clapeyron.entropy(model, P, T) .- s_res
+    #s_id  = Clapeyron.entropy(model, P, T) .- s_res
     R     = Clapeyron.Rgas()
-    s_red = -s_res / R
+    #s_red = -s_res / R
     total_sf = sum(model.params.shapefactor.values .* model.groups.n_groups[1])
-    m_gc = sum(model.groups.n_groups[1])
+    #m_gc = sum(model.groups.n_groups[1])
 
     z_term = (-s_res ./ R)./total_sf #.+ log.(-s_res ./ R) ./ total_sf
     
@@ -91,6 +98,11 @@ sigma_CH2_list  = Vector{Float64}(undef, length(models))
 m_gc_list       = Vector{Float64}(undef, length(models))
 total_sf_list   = Vector{Float64}(undef, length(models))
 temp_list = Vector{Vector{Float64}}(undef, length(models))
+pres_list = Vector{Vector{Float64}}(undef, length(models))
+
+gam_exp_list = Vector{Vector{Float64}}(undef, length(models))
+crit_pres_list = Vector{Float64}(undef, length(models))
+
 s_id_list = Vector{Vector{Float64}}(undef, length(models))
 epsilon_list = Vector{Float64}(undef, length(models))
 x_sk_list = Vector{Vector{Float64}}(undef, length(models))
@@ -127,8 +139,11 @@ for (i, (model, file)) in enumerate(zip(models, data_files))
         m_gc_list[i] = sum(model.groups.n_groups[1])
         total_sf_list[i] = sum(model.params.shapefactor.values .* model.groups.n_groups[1])
         temp_list[i] = T
+        pres_list[i] = P
+        gam_exp_list[i] = gamma_exponent.(model,P,T)
         crit_point = crit_pure(model)
         crit_pure_list[i] = crit_point[1]
+        crit_pres_list[i] = crit_point[2]
         s_id_list[i] = entropy_ideal.(model, P, T)
 
         epsilon_list[i] = ϵ_OFE(models[i])
@@ -182,12 +197,17 @@ function sse_group_contrib(params::AbstractVector{<:Real})
         m_gc = m_gc_list[i]
         tot_sf = total_sf_list[i]
         T = temp_list[i]
+        P = pres_list[i]
+        gamma_exp = gam_exp_list[i]
         T_C = crit_pure_list[i]
+        P_C = crit_pres_list[i]
+
         epsilon = epsilon_list[i]
         x_sk_model = x_sk_list[i]
         s_id = s_id_list[i]
         acentric_fact = acentric_list[i]
         Mw_model  = Mw_list[i]
+        
 
         V = num_CH3 * S_CH3 * sigma_CH3^3 + num_CH2 * S_CH2 * sigma_CH2^3
         #n_g1 = A_CH3 * S_CH3 * sigma_CH3^3 * num_CH3 + A_CH2 * S_CH2 * sigma_CH2^3 * num_CH2
@@ -197,7 +217,11 @@ function sse_group_contrib(params::AbstractVector{<:Real})
         #n_g2 = A_vdw(x_sk_model, B_CH3, B_CH2) #/ V ^ gamma
 
         #m = 0.379642 + 1.54226 * acentric_fact - 0.26992*acentric_fact^2
-        m_T = m_1 + m_2 * Mw_model + m_3 * Mw_model^2
+        #m_T = m_1 + m_2 * Mw_model + m_3 * Mw_model^2
+        #gam_exp = gamma_exponent.(models[i], P, T) .- gamma_exponent(models[i],P_C,T_C)
+        m_T = m_1 .+ m_2 .* gamma_exp .+ m_3 .* gamma_exp .^ 2
+        
+        #m_T = m_1 + m_2 * m_gc + m_3 * m_gc ^ 2
         #m = m_1 + m_2 * acentric_fact + m_3 * acentric_fact^2
 
         n_g3 = (C_CH3 .* num_CH3 .+ C_CH2 .* num_CH2) .*  (1 .+ m_T .* sqrt.(T./T_C))
@@ -235,12 +259,15 @@ x0 = [0.19559028955933497, 0.01891278652141742, -0.0676141053733902, -1.26556242
 x0 = [-0.06046671299667853, 0.3737836229207754, -7.098706802783836e-5, -0.6908323087652994, 0.27971954480593647, 0.00011222552630781913, 0.9988512642395981, 1.539793408904002e-5, -1.954697661169505e-6, -17.706835766026753, 32.73603031929364, 23.688913248745667]
 # For whole z division
 x0 = [0.6145360292355571, -8.559333420885814, 0.10300016800791054, -2.125091141241104, 23.487200356606454, -0.09629694834867396, 1.4888962872895215, -0.00018615415970691732, 0.0003568669321560236, -0.6825669125011607, 12.533744035717795, 15.510758387701088]
+# For mgc for tau
+x0 = [-0.030412555394213076, 0.0003759524822874654, -0.0788585031729372, -1.0894087686841185, 2.3172430099106588e-6, -0.0002924330416947319, -0.6617771433184333, 0.00021759950159757008, 0.00011712305344327157, -0.6791089104679724, 0.08324012291665168, 0.002834878605430142]
+
 lower = nothing #[-1.0, -5.0, -5.0, -5.0, -5.0, -5.0, -1.0, -10.0]
 upper = nothing #[1.0, 5.0,   5.0, 5.0, 5.0,   5.0,   1.0, 10.0]
 
 # CMA-ES hyperparameters
-σ0 = 0.1
-seed = 142
+σ0 = 0.01
+seed = 42
 Random.seed!(seed)
 #λ = 4 + floor(Int, 3 * log(length(x0)))
 stagnation_iters = 5000
@@ -256,7 +283,7 @@ result = minimize(
     verbosity = 2,
     #popsize = λ,
     stagnation = stagnation_iters,
-    maxiter = 10000,
+    maxiter = 30000,
     ftol = 1e-15,
     callback = (opt, x, fx, ranks) -> begin
         iter_counter[] += 1

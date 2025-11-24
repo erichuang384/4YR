@@ -1,4 +1,167 @@
 using LinearAlgebra
+function bell_lot_test(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params = nothing)
+    n_alpha = Dict(
+        "CH3" => (0.14544200778907007, 0.010683439643496976, -0.06148080798139255, 0.000157392327889979),
+        "CH2" => (-1.1927784860733681, 0.011458247757004004, -0.008458302429596044,  0.00016724013588380074),
+        "CH"  => (    -6.70322582565162, 0.013433432693828238, 0.03532440730533404, 0.0016759054663535538),
+		"C"  => (   5.441006090748911, -0.0513546650750801, 0.1412593290192207, 0.0026320850844137205)
+    )
+    γ = 0.16499191915814165
+ 
+    Mw = Clapeyron.molecular_weight(model, z)
+ 
+    m0, m1, m2 = -1.019572741285313, 10.667125465466807, -7.956775819220652
+
+    m = m0 + m1 * Mw + m2 * Mw ^ 2
+
+    A_i = Dict(k => v[1] for (k,v) in n_alpha)
+ 
+    groups = model.groups.groups[1]
+    num_groups = model.groups.n_groups[1]
+    S = model.params.shapefactor
+    σ = diag(model.params.sigma.values) .* 1e10
+ 
+ 
+    n_g_matrix = zeros(length(groups), 4)
+    V = sum(num_groups .* S .* (σ .^ 3))
+ 
+    crit_point = crit_pure(model)
+    T_C = crit_point[1]
+ 
+    for i in 1:length(groups)
+        gname = groups[i]
+        if !haskey(n_alpha, gname)
+            error("Group $gname not found in parameter dictionary")
+        end
+        A, B, C, D = n_alpha[gname]
+ 
+        n_g_matrix[i, 1] = 0
+        n_g_matrix[i, 2] = B * S[i] * σ[i]^3 * num_groups[i] / (V^γ)
+        n_g_matrix[i, 3] = C * num_groups[i] * (1 + m*sqrt(T/T_C))
+        n_g_matrix[i, 4] = D * S[i] * σ[i]^3 * num_groups[i]
+    end
+ 
+    n_g = vec(sum(n_g_matrix, dims = 1))
+    n_g[1] = A_vdw(model, A_i)
+ 
+    tot_sf = sum(S .* num_groups)
+ 
+    R = Clapeyron.Rgas()
+ 
+    s_res = entropy_res(model, P, T, z)
+ 
+    Z = (-s_res) / (R * tot_sf)
+ 
+    ln_n_reduced = n_g[1] + n_g[2] * Z + n_g[3] * Z^2 + n_g[4] * Z^3
+ 
+    N_A = Clapeyron.N_A
+    k_B = Clapeyron.k_B
+ 
+    ρ_molar = molar_density(model, P, T, z)
+    ρ_N = ρ_molar .* N_A
+ 
+    Mw = Clapeyron.molecular_weight(model, z)
+ 
+    m = Mw / N_A
+    n_reduced = exp(ln_n_reduced) - 1.0
+ 
+    n_res = (n_reduced) .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)# ./ ((s_red) .^ (2 / 3))
+ 
+    viscosity = n_res + IB_CE(model, T)
+    return viscosity
+end
+
+
+function bell_lot_viscosity_mix(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
+    n_alpha = Dict(
+        "CH3" => ( 0.14544200778907007,  0.010683439643496976, -0.06148080798139255,  0.000157392327889979 ),
+        "CH2" => (-1.1927784860733681,  0.011458247757004004, -0.008458302429596044,  0.00016724013588380074),
+        "CH"  => (   -6.70322582565162,  0.013433432693828238,  0.03532440730533404,  0.0016759054663535538),
+        "C"   => (    5.441006090748911, -0.0513546650750801,   0.1412593290192207,   0.0026320850844137205)
+    )
+    A_i = Dict(k => v[1] for (k,v) in n_alpha)
+    γ = 0.16499191915814165
+
+    components = model.groups.components
+    tot_sf = zeros(length(z))
+    V      = zeros(length(z))
+    n_g    = zeros(length(z), 4)
+
+    # Per-component m(Mw) polynomial (same as pure)
+    m0, m1, m2 = -1.019572741285313, 10.667125465466807, -7.956775819220652
+
+    for i in 1:length(z)
+        comp_model = SAFTgammaMie([components[i]])
+        groups     = comp_model.groups.groups[1]
+        num_groups = comp_model.groups.n_groups[1]
+        S          = comp_model.params.shapefactor
+        σ          = diag(comp_model.params.sigma.values).* 1e10
+
+        V[i] = sum(num_groups.* S.* (σ.^ 3))
+        n_g_matrix = zeros(length(groups), 4)
+
+        # per-component Mw, m, T_C (matches pure function algebra)
+        Mw_i = Clapeyron.molecular_weight(comp_model)
+        m_i  = m0 + m1 * Mw_i + m2 * Mw_i^2
+        T_Ci = crit_pure(comp_model)[1]
+
+        for j in 1:length(groups)
+            group = groups[j]
+            Aα, Bα, Cα, Dα = n_alpha[group]
+
+            n_g_matrix[j,1] = 0.0                                          # will be set by A_vdw_mix later
+            n_g_matrix[j,2] = Bα * S[j] * σ[j]^3 * num_groups[j] / (V[i]^γ)
+            n_g_matrix[j,3] = Cα * num_groups[j] * (1 + m_i * sqrt(T / T_Ci))
+            n_g_matrix[j,4] = Dα * S[j] * σ[j]^3 * num_groups[j]
+        end
+
+        n_g[i, :].= vec(sum(n_g_matrix, dims = 1))
+        n_g[i,1] = A_vdw(comp_model,A_i)
+        tot_sf[i] = sum(S.* num_groups)
+    end
+
+    # Mixture totals
+    tot_sf_mix = sum(tot_sf.* z)
+    #n_g_mix    = vec(sum(z.* n_g, dims = 1))
+    n_g_mix    = vec(sum(z .* tot_sf./tot_sf_mix .* n_g,dims = 1))
+    n_g_mix[1] = sum(n_g[:,1] .* z)
+
+
+    # A-term: use your fixed mixer that collapses to pure value for one-hot z
+    # (component-space vdW-like mixing)
+    # Ensure you use the corrected version:
+    #   A_vdw_mix(model, A_i, z) = z' * A_mat(z) * z, where A_mat is built from pure A_vdw per component
+    #n_g_mix[1] = A_vdw_mix(model, A_i, z)
+
+    # State functions
+    R     = Clapeyron.Rgas()
+    s_res = entropy_res(model, P, T, z)
+    Z     = (-s_res) / (R * tot_sf_mix)    # same structure as pure (tot_sf for pure, tot_sf_mix here)
+
+    # Reduced viscosity polynomial (same as pure model)
+    ln_n_reduced = n_g_mix[1] + n_g_mix[2]*Z + n_g_mix[3]*Z^2 + n_g_mix[4]*Z^3
+    n_reduced    = exp(ln_n_reduced) - 1.0
+
+    # Number density, particle mass (mixture)
+    N_A      = Clapeyron.N_A
+    k_B      = Clapeyron.k_B
+    ρ_molar  = molar_density(model, P, T, z)
+    ρ_N      = ρ_molar * N_A
+    Mw_mix   = Clapeyron.molecular_weight(model, z)
+    m_part   = Mw_mix / N_A
+
+    # Match pure algebra: no division by s_red^(2/3)
+    n_res = (n_reduced) * (ρ_N^(2/3)) * sqrt(m_part * k_B * T)
+
+    n_ideal = IB_CE_mix(model, T, z)
+    viscosity = n_ideal + n_res
+    return viscosity
+end
+bell_lot_viscosity_mix(model,1e5,300,[0.0,1.0])
+model
+bell_lot_test(SAFTgammaMie(["Octane"]),1e5,300)
+
+
 function bell_lot_viscosity(model::EoSModel, P, T, z = StaticArrays.SA[1.0])
 	"""
 	Overall Viscosity using method proposed by Ian Bell, 3 parameters

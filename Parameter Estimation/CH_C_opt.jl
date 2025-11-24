@@ -63,7 +63,7 @@ function reduced_visc(model::EoSModel, P, T, visc)
     total_sf = sum(model.params.shapefactor.values.* model.groups.n_groups[1])
 
     # z-term
-    z_term = (-s_res./ R)#./ total_sf
+    z_term = (-s_res./ R)./ total_sf
 
     # density and molecular mass for reduced viscosity
     N_A     = Clapeyron.N_A
@@ -87,6 +87,7 @@ data_T_list    = Vector{Vector{Float64}}(undef, length(models))  # masked T alig
 crit_pure_list = Vector{Float64}(undef, length(models))
 x_sk_list      = Vector{Vector{Float64}}(undef, length(models))
 Mw_list        = Vector{Float64}(undef, length(models))
+m_gc_list      = Vector{Float64}(undef, length(models))
 
 # Group counts and parameters
 ch3_count_list    = Vector{Float64}(undef, length(models))
@@ -155,6 +156,8 @@ for (i, (model, file)) in enumerate(zip(models, data_files))
         S_c_model_list[i]   = i_ch  === nothing ? 0.0 : Svals[i_c]
         sigma_c_list[i]     = i_ch  === nothing ? 0.0 : σdiag[i_c]*1e10   # Å
 
+        m_gc_list[i] = sum(ng)
+
         total_points[] += length(data_z_list[i])
     catch err
         @warn "Skipping invalid dataset" file error=err
@@ -208,11 +211,17 @@ m1_fix, m2_fix, m3_fix = (-0.07020613988459963, 0.4526929704410887, -1.673496009
   1.040106781887901, 
   1.5674091869700848e-5, -1.999341455459331e-6, -6.147413637510999e-5, -20.2637266914618, 38.55028392360753, 26.27614884148527)
 
+# For mgc in tau
 
 A_CH3_0, B_CH3_0, C_CH3_0,
 A_CH2_0, B_CH2_0, C_CH2_0,
-gamma_fix, D_i,
-m1_fix, m2_fix, m3_fix = (0.1996694035404919, 0.013163399618677435, -0.0395093022663388, -1.1712339187550833, 0.025427903131912948, -0.006610385377581092, 0.2946194908647525, 0.003918383017106727, -1.3580945763938599, 4.958547241103466, -0.662141126516273)
+A_CH_0, B_CH_0, C_CH_0,
+gamma_fix, D_CH3_0, D_CH2_0, D_CH_0,
+m1_fix, m2_fix, m3_fix = (-0.030412555394213076, 0.0003759524822874654, -0.0788585031729372,
+ -1.0894087686841185, 2.3172430099106588e-6, -0.0002924330416947319,
+ -4.210153940606789, -0.0013781702406517348, 0.0814448258175527, 
+  -0.6617771433184333, 0.00021759950159757008, 0.00011712305344327157, 0.0005347642026566619, -0.6791089104679724, 0.08324012291665168, 0.002834878605430142)
+
 
 # ------------------------------------------------------------
 # Initial guess for CH parameters [A_CH, B_CH, C_CH, D_CH]
@@ -261,6 +270,7 @@ function sse_C_only(params::AbstractVector{<:Real})
         Tc  = crit_pure_list[i]
         xsk = x_sk_list[i]
         Mw  = Mw_list[i]
+        m_gc = m_gc_list[i]
 
         # Volumes
         V_ch3 = ch3 * S_ch3 * sigma_ch3
@@ -283,7 +293,9 @@ function sse_C_only(params::AbstractVector{<:Real})
         #acentric_fact = acentric_factor(models[i])
         #m_i  = m1_fix + m2_fix*acentric_fact + m3_fix*acentric_fact^2
 
-        m_i  = m1_fix + m2_fix*Mw + m3_fix*Mw^2
+        #m_i  = m1_fix + m2_fix*Mw + m3_fix*Mw^2
+
+        m_i  = m1_fix + m2_fix*m_gc + m3_fix*m_gc^2
 
         n_g3 = (C_CH3_0 * ch3 + C_CH2_0 * ch2 + C_CH_0 * ch + C_C * c).* (1 .+ m_i.* sqrt.(T./ Tc))
 

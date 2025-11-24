@@ -1,5 +1,4 @@
 using LinearAlgebra, StaticArrays
-
 function entropy_ideal(model::EoSModel, p , T , z = StaticArrays.SA[1.0])
     s_id = Clapeyron.entropy(model, p, T, z) - entropy_res(model, p, T, z)
     return s_id
@@ -141,6 +140,92 @@ function x_sk(model::EoSModel)
     return xₛₖ[1]
 end
 
+function x_sk_mix(model::EoSModel, z)
+    # mixture group fractions x_{s,k} from mole fractions z (length = #components)
+    components = model.components
+
+    for g in 1:length(components)
+        comp_model = SAFTgammaMie([components[g]])
+        S = comp_model.params.shapefactor
+        segment = comp_model.params.segment
+    end
+
+
+    s = model.params.shapefactor
+    segment = model.params.segment
+    gc = 1:length(model.groups.flattenedgroups)     # group indices (k = 1..N_G)
+    comps = 1:length(model.groups.components)       # component indices (i = 1..N_C)
+
+    # copy group counts ν_{k,i} and weight by ν_k^* S_k
+    v = float.(model.groups.n_groups)               # v[i][k] = ν_{k,i}
+    for k in 1:length(z)
+        for i in comps
+            v[i][k] = v[i][k] * segment[k] * s[k]   # ν_{k,i} ν_k^* S_k
+        end
+    end
+
+    # numerator per group: Σ_i x_i ν_{k,i} ν_k^* S_k
+    numer = zeros(Float64, length(gc))
+    for k in 1:length(z)
+        for i in comps
+            numer[k] += z[i] * v[i][k]
+        end
+    end
+
+    # denominator: Σ_i x_i Σ_l ν_{l,i} ν_l^* S_l  = sum(numer)
+    denom = sum(numer)
+    denom = denom == 0.0 ? eps(Float64) : denom
+
+    xs = numer./ denom
+    return xs
+end
+
+function x_sk_mix(model::EoSModel, z)
+    # Mixture group fractions x_{s,k} from mole fractions z
+    # Returns vector in the order of model.groups.flattenedgroups
+
+    # Components and global group order
+    components = model.groups.components
+    g_global   = model.groups.flattenedgroups
+    ng         = length(g_global)
+    nc         = length(components)
+    @assert length(z) == nc "Length of z ($(length(z))) must match number of components ($nc)."
+
+    # Map group name -> global index
+    gidx = Dict(g_global[k] => k for k in 1:ng)
+
+    # V[i,k] = ν_{k,i} * ν_k^* * S_k (mapped to global group index k)
+    V = zeros(Float64, nc, ng)
+
+    for i in 1:nc
+        comp_model = SAFTgammaMie([components[i]])
+        groups     = comp_model.groups.groups[1]          # local group names for component i
+        n_grp      = comp_model.groups.n_groups[1]        # local counts ν_{k,i}
+        s          = comp_model.params.shapefactor        # local S_k
+        segment    = comp_model.params.segment            # local ν_k^*
+
+        for j in 1:length(groups)
+            gname = groups[j]
+            k     = gidx[gname]                           # map to global group index
+            V[i,k] += float(n_grp[j]) * segment[j] * s[j] # ν_{k,i} ν_k^* S_k
+        end
+    end
+
+    # Numerator per group: Σ_i x_i V[i,k]
+    numer = zeros(Float64, ng)
+    for k in 1:ng
+        for i in 1:nc
+            numer[k] += z[i] * V[i,k]
+        end
+    end
+
+    # Denominator: Σ_i x_i Σ_l V[i,l] = sum(numer)
+    denom = sum(numer)
+    denom = denom == 0.0 ? eps(Float64) : denom
+
+    return numer./ denom
+end
+
 function Ω⃰(model::EoSModel, T)
     """
     Collision Integral correlation by Fokin et al.
@@ -264,4 +349,32 @@ function A_vdw(model::EoSModel, A_i)
     A_ofe = (x_sk_vec' * (A_mat.^1) * x_sk_vec)
     #tau_ofe = sum(tau_vec .* x_vec)
     return A_ofe
+end
+
+function A_vdw_mix(model::EoSModel, A_i,z)
+    """
+    epsilon pure fluid equivalent
+    """
+    
+    xₛₖ = x_sk_mix(model,z)
+    n = length(z)
+    A_vdw_pure = zeros(n)
+    components = model.components
+    for i in 1:n
+        comp_model = SAFTgammaMie([components[i]])
+        A_vdw_pure[i] = A_vdw(comp_model, A_i)
+    end
+
+    A_mat = zeros(n,n)
+
+    for i in 1:n, j in 1:n
+        A_mat[i, j] = (i == j) ? A_vdw_pure[i] : (A_vdw_pure[i] + A_vdw_pure[j])/2 # using mean value
+    end
+
+    #x_vec = model.groups.n_groups[1]./sum(model.groups.n_groups[1])
+    #vdW mixing rule
+    
+    A_ofe_mix = (z' * (A_mat.^1) * z)
+    #tau_ofe = sum(tau_vec .* x_vec)
+    return A_ofe_mix
 end
