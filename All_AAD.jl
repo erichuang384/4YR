@@ -2,6 +2,8 @@ using Clapeyron, Plots, LinearAlgebra, CSV, DataFrames, LaTeXStrings, StaticArra
 #include("model development.jl")
 
 models = [
+    SAFTgammaMie(["Ethane"]),
+    SAFTgammaMie(["Propane"]),
     SAFTgammaMie(["Butane"]),
 	SAFTgammaMie(["Pentane"]),
 	SAFTgammaMie(["Hexane"]),
@@ -34,12 +36,21 @@ models = [
     SAFTgammaMie(["7-methylhexadecane"]),
     SAFTgammaMie(["2,2,4-trimethylpentane"]),
     SAFTgammaMie(["heptamethylnonane"]),
-    SAFTgammaMie(["2,2,4-trimethylhexane"])
-
+    SAFTgammaMie(["2,2,4-trimethylhexane"]),
+    SAFTgammaMie(["Neopentane"]), # 2,2-dimethylpropane
+    SAFTgammaMie(["2,2-dimethylbutane"]),
+    SAFTgammaMie(["2-methylpropane"]),
+    SAFTgammaMie(["3-methylpentane"]),
+    SAFTgammaMie(["2,3-dimethylbutane"]),
+    SAFTgammaMie(["3-ethylpentane"]),
+    SAFTgammaMie(["2,4-dimethylpentane"]),
+    SAFTgammaMie(["2,3,4-trimethylpentane"])
 ]
 
 
 data_paths = [
+    "Training DATA/Ethane DETHERM.csv",
+    "Training DATA/Propane DETHERM.csv",
     "Training DATA/Butane DETHERM.csv",
     "Training DATA/Pentane DETHERM.csv",
     "Training DATA/Hexane DETHERM.csv",
@@ -72,8 +83,15 @@ data_paths = [
     "Training DATA/Branched Alkane/7-methylhexadecane.csv",
     "Training DATA/Branched Alkane/2,2,4-trimethylpentane.csv",
     "Training DATA/Branched Alkane/2,2,4,4,6,8,8-heptamethylnonane.csv",
-    "Training DATA/Branched Alkane/2,2,4-trimethylhexane.csv"
-    
+    "Training DATA/Branched Alkane/2,2,4-trimethylhexane.csv",
+    "Training DATA/Branched Alkane/2,2-dimethylpropane.csv",
+    "Training DATA/Branched Alkane/2,2-dimethylbutane.csv",
+    "Training DATA/Branched Alkane/2-methylpropane.csv",
+    "Training DATA/Branched Alkane/3-methylpentane.csv",
+    "Training DATA/Branched Alkane/2,3-dimethylbutane.csv",
+    "Training DATA/Branched Alkane/3-ethylpentane.csv",
+    "Training DATA/Branched Alkane/2,4-dimethylpentane.csv",
+    "Training DATA/Branched Alkane/2,3,4-trimethylpentane.csv"
 ]
 
 substances = [model.groups.components[1] for model in models]
@@ -86,7 +104,7 @@ for i in 1:length(models)
     T_exp = exp_data[i][:,2]
     n_exp = exp_data[i][:,3]
     P_exp = exp_data[i][:,1] 
-    n_calc = bell_lot_test.(models[i],P_exp,T_exp) 
+    n_calc = bell_lot_m_gc_prop.(models[i],P_exp,T_exp) 
 
     AAD[i] = sum(abs.( (n_exp .- n_calc)./n_exp))/length(P_exp)
 end
@@ -97,7 +115,7 @@ mean(AAD[2:end-1])
 maximum(AAD[2:end-1])
 
 df = DataFrame(Substance = String[], Temperature_Range = String[], Pressure_Range = String[], Num_Data_Points = Int[], AAD = Float64[]
-, Weighting = Float64[]
+#, Weighting = Float64[]
 )
 
     
@@ -115,8 +133,9 @@ for i in 1:length(models)
     p_range = "$p_min - $p_max"
     num_points = length(P_exp)
     aad = AAD[i]
-   Weighting = weightings[i]
-    push!(df, (substance, t_range, p_range, num_points, aad, Weighting))
+#   Weighting = weightings[i]
+    push!(df, (substance, t_range, p_range, num_points, aad))#, Weighting))
 end
 
-CSV.write("ALL AAD_weighting.csv", df)
+println(df)
+#CSV.write("ALL AAD_weighting.csv", df)

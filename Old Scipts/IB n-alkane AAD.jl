@@ -160,6 +160,78 @@ function bell_lot_test(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params =
     return viscosity
 end
 
+function bell_lot_exp1_MW(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params = nothing)
+    n_alpha = Dict(
+        "CH3" => (0.2174584700616018, 0.008361680913211746, -0.025053309530719003, 0.00011170753171621334),
+        "CH2" => ( -1.1949802524204984, 0.009496373781074274, -0.01887191332418902,  0.00017118748215993833),
+        "CH"  => (   -8.174665043147424, 0.020268968800656033, -0.037029453668895734, 0.001993761553613756),
+		"C"  => ( 2.9338462417947166, -0.052685137143649134, 0.08362576947791169, 0.0021440131362818115)
+    )
+    γ = 0.13710940660288795
+ 
+    Mw = Clapeyron.molecular_weight(model, z)
+ 
+    m0, m1, m2 = -0.6190192697993737, 5.77318771388499, -4.20985789676712
+
+    m = m0 + m1 * Mw + m2 * Mw ^ 2
+
+    A_i = Dict(k => v[1] for (k,v) in n_alpha)
+ 
+    groups = model.groups.groups[1]
+    num_groups = model.groups.n_groups[1]
+    S = model.params.shapefactor
+    σ = diag(model.params.sigma.values) .* 1e10
+ 
+ 
+    n_g_matrix = zeros(length(groups), 4)
+    V = sum(num_groups .* S .* (σ .^ 3))
+ 
+    crit_point = crit_pure(model)
+    T_C = crit_point[1]
+ 
+    for i in 1:length(groups)
+        gname = groups[i]
+        if !haskey(n_alpha, gname)
+            error("Group $gname not found in parameter dictionary")
+        end
+        A, B, C, D = n_alpha[gname]
+ 
+        n_g_matrix[i, 1] = 0
+        n_g_matrix[i, 2] = B * S[i] * σ[i]^3 * num_groups[i] / (V^γ)
+        n_g_matrix[i, 3] = C * num_groups[i] * (1 + m*(T/T_C))
+        n_g_matrix[i, 4] = D * S[i] * σ[i]^3 * num_groups[i]
+    end
+ 
+    n_g = vec(sum(n_g_matrix, dims = 1))
+    n_g[1] = A_vdw(model, A_i)
+ 
+    tot_sf = sum(S .* num_groups)
+ 
+    R = Clapeyron.Rgas()
+ 
+    s_res = entropy_res(model, P, T, z)
+ 
+    Z = (-s_res) / (R * tot_sf)
+ 
+    ln_n_reduced = n_g[1] + n_g[2] * Z + n_g[3] * Z^2 + n_g[4] * Z^3
+ 
+    N_A = Clapeyron.N_A
+    k_B = Clapeyron.k_B
+ 
+    ρ_molar = molar_density(model, P, T, z)
+    ρ_N = ρ_molar .* N_A
+ 
+    Mw = Clapeyron.molecular_weight(model, z)
+ 
+    m = Mw / N_A
+    n_reduced = exp(ln_n_reduced) - 1.0
+ 
+    n_res = (n_reduced) .* (ρ_N .^ (2 / 3)) .* sqrt.(m .* k_B .* T)# ./ ((s_red) .^ (2 / 3))
+ 
+    viscosity = n_res + IB_CE(model, T)
+    return viscosity
+end
+
 function bell_lot_test_ethane(model::EoSModel, P, T, z = StaticArrays.SA[1.0]; params = nothing)
     n_alpha = Dict(
         "CH3" => (-0.7308696304541888, 0.016438988670898942, -0.11192783609788026,  0.0002863299993112273),

@@ -1,7 +1,0 @@
-change gamma for the bell 
-
-change D for lot/bell
-
-dividing over sum of shape factors also normalizes quite well
-
-CHECK ISOMORPH

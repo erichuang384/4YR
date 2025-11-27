@@ -36,12 +36,12 @@ models = [
     SAFTgammaMie(["Eicosane"], idealmodel = BasicIdeal)
 ]
 
-crit_point_list = crit_pure.(models)
+#= crit_point_list = crit_pure.(models)
 crit_entropy_list = zeros(length(models))
 for i in 1:length(models)
     crit_entropy_list[i] = entropy_res(models[i], crit_point_list[i][2],crit_point_list[i][1])
 end
-res_crit_entropy_list = -crit_entropy_list ./ Rgas()
+res_crit_entropy_list = -crit_entropy_list ./ Rgas() =#
 
 
 data_files = [
@@ -52,7 +52,7 @@ data_files = [
     "Training DATA/Decane DETHERM.csv",
     "Training DATA/Dodecane DETHERM.csv",
     "Validation Data/Tridecane DETHERM.csv",
-    "Validation Data/Pentadecane DETHERM.csv",
+#    "Validation Data/Pentadecane DETHERM.csv",
     "Training DATA/Hexadecane DETHERM.csv",
     "Validation Data/Heptadecane DETHERM.csv",
     "Training DATA/n-eicosane.csv"
@@ -100,7 +100,7 @@ total_sf_list   = Vector{Float64}(undef, length(models))
 temp_list = Vector{Vector{Float64}}(undef, length(models))
 pres_list = Vector{Vector{Float64}}(undef, length(models))
 
-gam_exp_list = Vector{Vector{Float64}}(undef, length(models))
+#gam_exp_list = Vector{Vector{Float64}}(undef, length(models))
 crit_pres_list = Vector{Float64}(undef, length(models))
 
 s_id_list = Vector{Vector{Float64}}(undef, length(models))
@@ -140,11 +140,11 @@ for (i, (model, file)) in enumerate(zip(models, data_files))
         total_sf_list[i] = sum(model.params.shapefactor.values .* model.groups.n_groups[1])
         temp_list[i] = T
         pres_list[i] = P
-        gam_exp_list[i] = gamma_exponent.(model,P,T)
+        #gam_exp_list[i] = gamma_exponent.(model,P,T)
         crit_point = crit_pure(model)
         crit_pure_list[i] = crit_point[1]
         crit_pres_list[i] = crit_point[2]
-        s_id_list[i] = entropy_ideal.(model, P, T)
+        #s_id_list[i] = entropy_ideal.(model, P, T)
 
         epsilon_list[i] = ϵ_OFE(models[i])
         x_sk_list[i] = x_sk(models[i])
@@ -198,13 +198,13 @@ function sse_group_contrib(params::AbstractVector{<:Real})
         tot_sf = total_sf_list[i]
         T = temp_list[i]
         P = pres_list[i]
-        gamma_exp = gam_exp_list[i]
+        #gamma_exp = gam_exp_list[i]
         T_C = crit_pure_list[i]
         P_C = crit_pres_list[i]
 
         epsilon = epsilon_list[i]
         x_sk_model = x_sk_list[i]
-        s_id = s_id_list[i]
+       # s_id = s_id_list[i]
         acentric_fact = acentric_list[i]
         Mw_model  = Mw_list[i]
         
@@ -217,14 +217,16 @@ function sse_group_contrib(params::AbstractVector{<:Real})
         #n_g2 = A_vdw(x_sk_model, B_CH3, B_CH2) #/ V ^ gamma
 
         #m = 0.379642 + 1.54226 * acentric_fact - 0.26992*acentric_fact^2
-        #m_T = m_1 + m_2 * Mw_model + m_3 * Mw_model^2
+        m_T = m_1 + m_2 * Mw_model + m_3 * Mw_model^2
         #gam_exp = gamma_exponent.(models[i], P, T) .- gamma_exponent(models[i],P_C,T_C)
-        m_T = m_1 .+ m_2 .* gamma_exp .+ m_3 .* gamma_exp .^ 2
+        #m_T = m_1 .+ m_2 .* gamma_exp .+ m_3 .* gamma_exp .^ 2
         
         #m_T = m_1 + m_2 * m_gc + m_3 * m_gc ^ 2
         #m = m_1 + m_2 * acentric_fact + m_3 * acentric_fact^2
 
         n_g3 = (C_CH3 .* num_CH3 .+ C_CH2 .* num_CH2) .*  (1 .+ m_T .* sqrt.(T./T_C))
+        #n_g3 = (C_CH3 .* num_CH3 .+ C_CH2 .* num_CH2) .*   m_T .* log.(T)
+
         #n_g3 = (C_CH3 .* num_CH3 .+ C_CH2 .* num_CH2) .* s_id
         #n_g3 = A_vdw_opt(x_sk_model,C_CH3, C_CH2) .* s_id
         #n_g3 = (log.( A_vdw_opt(x_sk_model, C_CH3,C_CH2).* T ./ T_C))
@@ -283,7 +285,7 @@ result = minimize(
     verbosity = 2,
     #popsize = λ,
     stagnation = stagnation_iters,
-    maxiter = 30000,
+    maxiter = 10000,
     ftol = 1e-15,
     callback = (opt, x, fx, ranks) -> begin
         iter_counter[] += 1
